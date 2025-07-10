@@ -1,85 +1,12 @@
-use std::collections::HashMap;
-use std::fmt;
-use uuid::Uuid;
+mod player;
+mod player_manager;
 
-#[derive(Debug)]
-struct Player {
-    id: String,
-    name: String,
-    is_connected: bool,
-}
+use player::Player;
+use player_manager::PlayerManager;
 
-impl fmt::Display for Player {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Name: {} ({}), is_connected: {}",
-            self.name, self.id, self.is_connected
-        )
-    }
-}
-impl Player {
-    fn new(name: &str) -> Self {
-        Self {
-            id: Uuid::new_v4().to_string(),
-            name: name.to_string(),
-            is_connected: true,
-        }
-    }
-    fn disconnect(&mut self) {
-        self.is_connected = false;
-    }
-}
-
-struct PlayerManager {
-    players: HashMap<String, Player>,
-}
-impl PlayerManager {
-    fn new() -> Self {
-        Self {
-            players: HashMap::new(),
-        }
-    }
-    fn add_player(&mut self, player: Player) -> Result<(), String> {
-        let id = player.id.clone(); // Clone once
-        if self.players.contains_key(&id) {
-            Err("ID already exists".to_string())
-        } else {
-            self.players.insert(id, player);
-            Ok(())
-        }
-    }
-    fn get_player(&self, id: &str) -> Option<&Player> {
-        self.players.get(id)
-    }
-    fn remove_player(&mut self, id: &str) -> Option<Player> {
-        self.players.remove(id)
-    }
-    fn list_connected_players(&self) -> Vec<&Player> {
-        self.players
-            .values()
-            .filter(|value| value.is_connected)
-            .collect()
-    }
-    fn disconnect_player(&mut self, id: &str) -> Result<(), String> {
-        match self.players.get_mut(id) {
-            Some(player) => {
-                player.disconnect();
-                Ok(())
-            }
-            None => Err("Player not found".to_string()),
-        }
-    }
-    fn player_count(&self) -> usize {
-        self.players.len()
-    }
-    fn connected_count(&self) -> usize {
-        self.players.values().filter(|p| p.is_connected).count()
-    }
-}
 fn main() {
-    let mut player1 = Player::new("Gino");
-    let mut player2 = Player::new("Fabrizio");
+    let player1 = Player::new("Gino");
+    let player2 = Player::new("Fabrizio");
 
     let mut manager = PlayerManager::new();
 
@@ -116,4 +43,7 @@ fn main() {
         None => println!("User not found!"),
         Some(player) => println!("{}", player),
     }
+
+    manager.player_count();
+    manager.connected_count();
 }
