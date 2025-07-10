@@ -41,46 +41,79 @@ impl PlayerManager {
         }
     }
     fn add_player(&mut self, player: Player) -> Result<(), String> {
-        let is_player_present = self.players.iter().any(|(key, _player)| *key == player.id);
-        self.players.insert(player.id.clone(), player);
-        if is_player_present {
-            Ok(())
-        } else {
+        let id = player.id.clone(); // Clone once
+        if self.players.contains_key(&id) {
             Err("ID already exists".to_string())
+        } else {
+            self.players.insert(id, player);
+            Ok(())
         }
     }
-    fn get_player(&self, id: String) -> Option<&Player> {
-        self.players
-            .iter()
-            .find_map(|(key, player)| if *key == id { Some(player) } else { None })
+    fn get_player(&self, id: &str) -> Option<&Player> {
+        self.players.get(id)
     }
-    fn remove_player(&mut self, id: String) -> Option<Player> {
-        self.players.remove(&id)
+    fn remove_player(&mut self, id: &str) -> Option<Player> {
+        self.players.remove(id)
     }
     fn list_connected_players(&self) -> Vec<&Player> {
         self.players
-            .iter()
-            .filter(|(key, value)| value.is_connected)
-            .map(|(key, value)| value)
+            .values()
+            .filter(|value| value.is_connected)
             .collect()
+    }
+    fn disconnect_player(&mut self, id: &str) -> Result<(), String> {
+        match self.players.get_mut(id) {
+            Some(player) => {
+                player.disconnect();
+                Ok(())
+            }
+            None => Err("Player not found".to_string()),
+        }
+    }
+    fn player_count(&self) -> usize {
+        self.players.len()
+    }
+    fn connected_count(&self) -> usize {
+        self.players.values().filter(|p| p.is_connected).count()
     }
 }
 fn main() {
     let mut player1 = Player::new("Gino");
     let mut player2 = Player::new("Fabrizio");
-    player1.disconnect();
-    player2.disconnect();
 
     let mut manager = PlayerManager::new();
-    let player = manager.get_player(player1.id.clone());
+
+    // Save IDs before moving players
+    let player1_id = player1.id.clone();
+    let player2_id = player2.id.clone();
+
+    // Test get_player before adding (should be None)
+    let player = manager.get_player(&player1_id);
     match player {
         Some(pl) => println!("{}", pl),
         None => println!("Error: cannot get player"),
     }
-    let added_player = manager.add_player(player1);
-    match added_player {
+
+    // Add players
+    let added_player_result = manager.add_player(player1);
+    match added_player_result {
         Err(err) => println!("{}", err),
         Ok(..) => println!("Player added!"),
     }
-    let connected_players = list_connected_players()
+
+    manager.add_player(player2).unwrap();
+
+    let connected_players = manager.list_connected_players();
+    println!("{:?}", connected_players);
+    manager.disconnect_player(&player1_id).unwrap();
+    manager.disconnect_player(&player2_id).unwrap();
+
+    let connected_players = manager.list_connected_players();
+    println!("{:?}", connected_players);
+
+    let removed_player = manager.remove_player(&player1_id);
+    match removed_player {
+        None => println!("User not found!"),
+        Some(player) => println!("{}", player),
+    }
 }
