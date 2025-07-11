@@ -3,6 +3,14 @@ name = "Isaac_Four_Souls_Websocket"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "isaac_four_souls"
+path = "src/lib.rs"
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+
 [dependencies]
 serde = { version = "1.0.219", features = ["derive"] }
 uuid = { version = "1", features = ["v4"] }

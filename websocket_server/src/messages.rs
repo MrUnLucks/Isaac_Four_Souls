@@ -68,3 +68,11 @@ pub fn handle_message(msg: GameMessage, manager: &mut PlayerManager) -> GameResp
         GameMessage::Ping => GameResponse::Pong,
     }
 }
+
+// pub fn seralize_message(msg: &GameMessage) -> Result<String, serde_json::Error> {
+//     msg.serialize(serializer)
+// }
+
+// pub fn deserialize_message(json: &str) -> Result<GameMessage, serde_json::Error> {
+//     serde_json::from_str(json)
+// }

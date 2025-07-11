@@ -31,8 +31,8 @@ impl Player {
     }
 }
 impl Messageable for Player {
-    fn get_id(&self) -> String {
-        &self.id.to_string()
+    fn get_id(&self) -> &str {
+        &self.id
     }
     fn send_message(&self, message: String) {
         println!("Sending to {}: {}", self.name, message);

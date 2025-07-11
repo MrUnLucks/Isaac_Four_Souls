@@ -118,7 +118,7 @@ async fn test_player_manager_edge_cases() {
 
     // Test adding duplicate player
     let player = Player::new("TestPlayer");
-    let player_id = player.id.clone();
+    let _player_id = player.id.clone();
     let duplicate_player = Player::new("TestPlayer");
     // Note: This should work since they have different IDs even with same name
 
@@ -139,7 +139,7 @@ async fn test_concurrent_operations() {
     println!("=== Testing Concurrent Operations ===");
 
     let mut manager = PlayerManager::new();
-    let mut handles = vec![];
+    let mut _handles: Vec<tokio::task::JoinHandle<()>> = vec![];
 
     // Create multiple players concurrently
     for i in 0..10 {
@@ -161,13 +161,69 @@ async fn test_concurrent_operations() {
     println!("✓ Concurrent operations test passed");
 }
 
-// Helper function to run all tests
-pub async fn run_integration_tests() {
-    println!("🚀 Running Isaac Four Souls Integration Tests\n");
+// Helper function to run manual tests (not using #[tokio::test])
+pub async fn run_manual_integration_tests() {
+    println!("🚀 Running Isaac Four Souls Manual Integration Tests\n");
 
-    test_player_manager_workflow().await;
-    test_player_manager_edge_cases().await;
-    test_concurrent_operations().await;
+    // Since the actual tests are marked with #[tokio::test], we'll create
+    // a manual version here for demonstration purposes
+    manual_player_manager_test().await;
 
-    println!("\n🎉 All integration tests completed!");
+    println!("\n🎉 Manual integration tests completed!");
+    println!("💡 Run 'cargo test' to execute the full test suite with #[tokio::test]");
+}
+
+async fn manual_player_manager_test() {
+    println!("=== Manual Player Manager Test ===");
+
+    let player1 = Player::new("Gino");
+    let player2 = Player::new("Fabrizio");
+
+    let mut manager = PlayerManager::new();
+
+    // Save IDs before moving players
+    let player1_id = player1.id.clone();
+    let player2_id = player2.id.clone();
+
+    // Test get_player before adding (should be None)
+    let player = manager.get_player(&player1_id);
+    match player {
+        Some(pl) => println!("{}", pl),
+        None => println!("✓ Error: cannot get player (expected behavior)"),
+    }
+
+    // Add players
+    let added_player_result = manager.add_player(player1);
+    match added_player_result {
+        Err(err) => println!("✗ {}", err),
+        Ok(..) => println!("✓ Player added!"),
+    }
+
+    manager.add_player(player2).unwrap();
+
+    let connected_players = manager.list_connected_players();
+    println!("Connected players: {:?}", connected_players);
+
+    manager.disconnect_player(&player1_id).unwrap();
+    manager.disconnect_player(&player2_id).unwrap();
+
+    let connected_players = manager.list_connected_players();
+    println!(
+        "Connected players after disconnect: {:?}",
+        connected_players
+    );
+
+    let removed_player = manager.remove_player(&player1_id);
+    match removed_player {
+        None => println!("✓ User not found! (expected after removal)"),
+        Some(player) => println!("✓ Removed: {}", player),
+    }
+
+    println!("Player count: {}", manager.player_count());
+    println!("Connected count: {}", manager.connected_count());
+
+    let result = simulate_network_delay().await;
+    println!("Network delay result: {}", result);
+
+    handle_multiple_requests().await;
 }
