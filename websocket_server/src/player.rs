@@ -1,3 +1,4 @@
+use super::traits::Messageable;
 use std::fmt;
 use uuid::Uuid;
 
@@ -27,5 +28,13 @@ impl Player {
     }
     pub fn disconnect(&mut self) {
         self.is_connected = false;
+    }
+}
+impl Messageable for Player {
+    fn get_id(&self) -> String {
+        &self.id.to_string()
+    }
+    fn send_message(&self, message: String) {
+        println!("Sending to {}: {}", self.name, message);
     }
 }
