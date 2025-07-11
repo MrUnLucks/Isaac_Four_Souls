@@ -1,3 +1,4 @@
+mod messages;
 mod player;
 mod player_manager;
 
