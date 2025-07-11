@@ -1,11 +1,15 @@
+mod async_utils;
 mod messages;
 mod player;
-mod player_manager;
+mod player_manager; // Add this
+mod traits
 
+use async_utils::{handle_multiple_requests, simulate_network_delay};
 use player::Player;
 use player_manager::PlayerManager;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let player1 = Player::new("Gino");
     let player2 = Player::new("Fabrizio");
 
@@ -47,4 +51,8 @@ fn main() {
 
     manager.player_count();
     manager.connected_count();
+    let result = simulate_network_delay().await;
+    println!("{}", result);
+
+    handle_multiple_requests().await;
 }

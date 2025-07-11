@@ -1,4 +1,4 @@
-use super::traits::Messageable;
+use crate::traits::Messageable;
 use std::fmt;
 use uuid::Uuid;
 
