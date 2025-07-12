@@ -1,38 +1,90 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebSocket Test Client</title>
+    <title>Isaac Four Souls Game Client</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .controls { margin: 10px 0; }
+        .controls button { margin: 5px; padding: 10px; }
+        .messages { 
+            border: 1px solid #ccc; 
+            height: 400px; 
+            overflow-y: scroll; 
+            padding: 10px; 
+            background: #f9f9f9;
+        }
+        .message { margin: 5px 0; }
+        .sent { color: green; }
+        .received { color: blue; }
+        .error { color: red; }
+        .system { color: gray; }
+        input[type="text"] { width: 300px; padding: 5px; }
+    </style>
 </head>
 <body>
-    <h1>Isaac Four Souls WebSocket Test</h1>
-    <div>
-        <input type="text" id="messageInput" placeholder="Type a message...">
-        <button onclick="sendMessage()">Send</button>
-        <button onclick="connect()">Connect</button>
-        <button onclick="disconnect()">Disconnect</button>
+    <div class="container">
+        <h1>🎮 Isaac Four Souls WebSocket Client</h1>
+        
+        <div class="controls">
+            <button onclick="connect()">Connect</button>
+            <button onclick="disconnect()">Disconnect</button>
+            <span id="status">Disconnected</span>
+        </div>
+
+        <div class="controls">
+            <h3>Game Actions:</h3>
+            <input type="text" id="playerNameInput" placeholder="Player Name" value="TestPlayer">
+            <button onclick="joinGame()">Join Game</button>
+            <br><br>
+            <input type="text" id="chatInput" placeholder="Chat message">
+            <button onclick="sendChat()">Send Chat</button>
+            <br><br>
+            <button onclick="sendPing()">Send Ping</button>
+            <button onclick="leaveGame()">Leave Game</button>
+        </div>
+
+        <div class="controls">
+            <h3>Raw JSON:</h3>
+            <input type="text" id="rawJsonInput" placeholder='{"Ping": null}' style="width: 400px;">
+            <button onclick="sendRawJson()">Send Raw JSON</button>
+        </div>
+
+        <h3>Messages:</h3>
+        <div class="messages" id="messages"></div>
     </div>
-    <div id="messages"></div>
 
     <script>
         let ws = null;
+        let currentPlayerId = null;
         
         function connect() {
             ws = new WebSocket('ws://localhost:8080');
             
             ws.onopen = function() {
-                addMessage('Connected to server!', 'system');
+                addMessage('✅ Connected to Isaac Four Souls server!', 'system');
+                document.getElementById('status').textContent = 'Connected';
             };
             
             ws.onmessage = function(event) {
-                addMessage('Server: ' + event.data, 'received');
+                console.log('Received:', event.data);
+                
+                try {
+                    const response = JSON.parse(event.data);
+                    handleServerResponse(response);
+                } catch (e) {
+                    addMessage('📨 Raw message: ' + event.data, 'received');
+                }
             };
             
             ws.onclose = function() {
-                addMessage('Disconnected from server', 'system');
+                addMessage('❌ Disconnected from server', 'system');
+                document.getElementById('status').textContent = 'Disconnected';
+                currentPlayerId = null;
             };
             
             ws.onerror = function(error) {
-                addMessage('Error: ' + error, 'error');
+                addMessage('💥 WebSocket error: ' + error, 'error');
             };
         }
         
@@ -42,32 +94,120 @@
             }
         }
         
-        function sendMessage() {
-            const input = document.getElementById('messageInput');
-            if (ws && input.value) {
-                ws.send(input.value);
-                addMessage('You: ' + input.value, 'sent');
-                input.value = '';
+        function handleServerResponse(response) {
+            if (response.Welcome) {
+                currentPlayerId = response.Welcome.player_id;
+                addMessage(`🎉 Welcome! Your Player ID: ${currentPlayerId}`, 'system');
+            } else if (response.PlayerJoined) {
+                addMessage(`👋 ${response.PlayerJoined.player_name} joined the game`, 'system');
+            } else if (response.PlayerLeft) {
+                addMessage(`👋 ${response.PlayerLeft.player_name} left the game`, 'system');
+            } else if (response.ChatMessage) {
+                addMessage(`💬 ${response.ChatMessage.player_name}: ${response.ChatMessage.message}`, 'received');
+            } else if (response.Pong) {
+                addMessage(`🏓 Pong received`, 'received');
+            } else if (response.Error) {
+                addMessage(`❌ Error: ${response.Error.message}`, 'error');
+            } else {
+                addMessage(`📨 Unknown response: ${JSON.stringify(response)}`, 'received');
             }
+        }
+        
+        function joinGame() {
+            const playerName = document.getElementById('playerNameInput').value;
+            if (!playerName) {
+                alert('Please enter a player name');
+                return;
+            }
+            
+            const message = {
+                "Join": {
+                    "player_name": playerName
+                }
+            };
+            
+            sendJsonMessage(message);
+        }
+        
+        function sendChat() {
+            const chatText = document.getElementById('chatInput').value;
+            if (!chatText || !currentPlayerId) {
+                alert('Please join the game first and enter a message');
+                return;
+            }
+            
+            const message = {
+                "Chat": {
+                    "player_id": currentPlayerId,
+                    "message": chatText
+                }
+            };
+            
+            sendJsonMessage(message);
+            document.getElementById('chatInput').value = '';
+        }
+        
+        function sendPing() {
+            const message = "Ping";
+            sendJsonMessage(message);
+        }
+        
+        function leaveGame() {
+            if (!currentPlayerId) {
+                alert('You are not in a game');
+                return;
+            }
+            
+            const message = {
+                "Leave": {
+                    "player_id": currentPlayerId
+                }
+            };
+            
+            sendJsonMessage(message);
+            currentPlayerId = null;
+        }
+        
+        function sendRawJson() {
+            const rawJson = document.getElementById('rawJsonInput').value;
+            if (!rawJson) return;
+            
+            try {
+                const parsed = JSON.parse(rawJson);
+                sendJsonMessage(parsed);
+                document.getElementById('rawJsonInput').value = '';
+            } catch (e) {
+                addMessage(`❌ Invalid JSON: ${e.message}`, 'error');
+            }
+        }
+        
+        function sendJsonMessage(messageObj) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addMessage('❌ Not connected to server', 'error');
+                return;
+            }
+            
+            const jsonString = JSON.stringify(messageObj);
+            addMessage(`📤 Sending: ${jsonString}`, 'sent');
+            ws.send(jsonString);
         }
         
         function addMessage(message, type) {
             const messagesDiv = document.getElementById('messages');
             const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
             messageDiv.textContent = new Date().toLocaleTimeString() + ' - ' + message;
-            messageDiv.style.color = type === 'error' ? 'red' : 
-                                   type === 'system' ? 'blue' : 
-                                   type === 'sent' ? 'green' : 'black';
             messagesDiv.appendChild(messageDiv);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
         
-        // Allow Enter key to send message
-        document.getElementById('messageInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
+        // Example messages for testing
+        function loadExampleMessages() {
+            document.getElementById('rawJsonInput').value = '{"Ping": null}';
+        }
+        
+        // Load examples on page load
+        window.onload = loadExampleMessages;
     </script>
 </body>
 </html>
