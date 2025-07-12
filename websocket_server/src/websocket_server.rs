@@ -1,41 +1,244 @@
-use futures_util::{SinkExt, StreamExt};
-use std::{
-    error::Error,
-    sync::{Arc, Mutex},
+// src/multi_client_websocket.rs
+use futures_util::{SinkExt, StreamExt, stream::SplitSink};
+use std::{collections::HashMap, error::Error, sync::Arc};
+use tokio::{
+    net::{TcpListener, TcpStream},
+    sync::{Mutex, mpsc},
 };
-use tokio::net::{TcpListener, TcpStream};
-use tokio_tungstenite::{accept_async, tungstenite::Message};
+use tokio_tungstenite::{WebSocketStream, accept_async, tungstenite::Message};
+use uuid::Uuid;
 
-use crate::PlayerManager;
-use crate::messages::{ServerResponse, deserialize_message, handle_message, serialize_response};
+use crate::{
+    PlayerManager,
+    messages::{
+        ServerMessage, ServerResponse, deserialize_message, handle_message, serialize_response,
+    },
+};
 
-pub struct GameWebsocketServer {
-    address: String,
-    player_manager: Arc<Mutex<PlayerManager>>,
+// Represents a single WebSocket connection
+#[derive(Debug)]
+struct WebSocketConnection {
+    id: String,
+    player_id: Option<String>, // None until they join the game
+    sender: SplitSink<WebSocketStream<TcpStream>, Message>,
 }
 
-impl GameWebsocketServer {
+// Commands sent to the connection manager
+#[derive(Debug)]
+enum ConnectionCommand {
+    AddConnection {
+        id: String,
+        sender: SplitSink<WebSocketStream<TcpStream>, Message>,
+    },
+    RemoveConnection {
+        id: String,
+    },
+    SendToAll {
+        message: String,
+    },
+    SendToPlayer {
+        player_id: String,
+        message: String,
+    },
+    AssociatePlayer {
+        connection_id: String,
+        player_id: String,
+    },
+}
+
+// Manages all active WebSocket connections
+struct ConnectionManager {
+    connections: HashMap<String, WebSocketConnection>,
+}
+
+impl ConnectionManager {
+    fn new() -> Self {
+        Self {
+            connections: HashMap::new(),
+        }
+    }
+
+    fn add_connection(
+        &mut self,
+        id: String,
+        sender: SplitSink<WebSocketStream<TcpStream>, Message>,
+    ) {
+        let connection = WebSocketConnection {
+            id: id.clone(),
+            player_id: None,
+            sender,
+        };
+        self.connections.insert(id.clone(), connection);
+        println!(
+            "📝 Added connection: {} (Total: {})",
+            id,
+            self.connections.len()
+        );
+    }
+
+    fn remove_connection(&mut self, id: &str) {
+        if let Some(connection) = self.connections.remove(id) {
+            println!(
+                "🗑️ Removed connection: {} (Total: {})",
+                id,
+                self.connections.len()
+            );
+            if let Some(player_id) = connection.player_id {
+                println!("👋 Player {} disconnected", player_id);
+            }
+        }
+    }
+
+    fn associate_player(&mut self, connection_id: &str, player_id: String) {
+        if let Some(connection) = self.connections.get_mut(connection_id) {
+            connection.player_id = Some(player_id.clone());
+            println!(
+                "🔗 Associated connection {} with player {}",
+                connection_id, player_id
+            );
+        }
+    }
+
+    async fn send_to_all(&mut self, message: &str) {
+        println!(
+            "📢 Broadcasting to {} connections: {}",
+            self.connections.len(),
+            message
+        );
+
+        let mut failed_connections = Vec::new();
+
+        for (id, connection) in &mut self.connections {
+            if let Err(e) = connection
+                .sender
+                .send(Message::Text(message.to_string()))
+                .await
+            {
+                eprintln!("❌ Failed to send to connection {}: {}", id, e);
+                failed_connections.push(id.clone());
+            }
+        }
+
+        // Remove failed connections
+        for failed_id in failed_connections {
+            self.remove_connection(&failed_id);
+        }
+    }
+
+    async fn send_to_player(&mut self, player_id: &str, message: &str) {
+        let mut connection_to_send = None;
+
+        // Find the connection for this player
+        for (conn_id, connection) in &self.connections {
+            if let Some(ref conn_player_id) = connection.player_id {
+                if conn_player_id == player_id {
+                    connection_to_send = Some(conn_id.clone());
+                    break;
+                }
+            }
+        }
+
+        if let Some(conn_id) = connection_to_send {
+            if let Some(connection) = self.connections.get_mut(&conn_id) {
+                if let Err(e) = connection
+                    .sender
+                    .send(Message::Text(message.to_string()))
+                    .await
+                {
+                    eprintln!("❌ Failed to send to player {}: {}", player_id, e);
+                    self.remove_connection(&conn_id);
+                }
+            }
+        }
+    }
+}
+
+// Combined game state
+struct GameState {
+    player_manager: PlayerManager,
+    connection_manager: ConnectionManager,
+}
+
+impl GameState {
+    fn new() -> Self {
+        Self {
+            player_manager: PlayerManager::new(),
+            connection_manager: ConnectionManager::new(),
+        }
+    }
+}
+
+pub struct MultiClientWebSocketServer {
+    address: String,
+}
+
+impl MultiClientWebSocketServer {
     pub fn new(address: &str) -> Self {
         Self {
             address: address.to_string(),
-            player_manager: Arc::new(Mutex::new(PlayerManager::new())),
         }
     }
 
     pub async fn run(&self) -> Result<(), Box<dyn Error>> {
         let listener = TcpListener::bind(&self.address).await?;
-        println!("🌐 WebSocket Server listening on {}", self.address);
+        println!(
+            "🌐 Multi-Client WebSocket Server listening on {}",
+            self.address
+        );
 
+        // Create shared game state
+        let game_state = Arc::new(Mutex::new(GameState::new()));
+
+        // Create channel for connection management commands
+        let (cmd_sender, mut cmd_receiver) = mpsc::unbounded_channel::<ConnectionCommand>();
+
+        // Spawn connection manager task
+        let game_state_clone = game_state.clone();
+        tokio::spawn(async move {
+            while let Some(command) = cmd_receiver.recv().await {
+                let mut state = game_state_clone.lock().await;
+
+                match command {
+                    ConnectionCommand::AddConnection { id, sender } => {
+                        state.connection_manager.add_connection(id, sender);
+                    }
+                    ConnectionCommand::RemoveConnection { id } => {
+                        state.connection_manager.remove_connection(&id);
+                    }
+                    ConnectionCommand::SendToAll { message } => {
+                        state.connection_manager.send_to_all(&message).await;
+                    }
+                    ConnectionCommand::SendToPlayer { player_id, message } => {
+                        state
+                            .connection_manager
+                            .send_to_player(&player_id, &message)
+                            .await;
+                    }
+                    ConnectionCommand::AssociatePlayer {
+                        connection_id,
+                        player_id,
+                    } => {
+                        state
+                            .connection_manager
+                            .associate_player(&connection_id, player_id);
+                    }
+                }
+            }
+        });
+
+        // Accept connections
         while let Ok((stream, addr)) = listener.accept().await {
             println!("🔗 New connection from: {}", addr);
+            let connection_id = Uuid::new_v4().to_string();
 
-            // Clone the Arc to share with the spawned task
-            let player_manager = self.player_manager.clone();
+            let game_state = game_state.clone();
+            let cmd_sender = cmd_sender.clone();
 
-            // Spawn a task to handle each connection
             tokio::spawn(async move {
-                if let Err(e) = Self::handle_connection(stream, player_manager).await {
-                    eprintln!("❌ Error handling WebSocket connection: {}", e);
+                if let Err(e) =
+                    Self::handle_connection(stream, connection_id, game_state, cmd_sender).await
+                {
+                    eprintln!("❌ Error handling connection: {}", e);
                 }
             });
         }
@@ -45,98 +248,129 @@ impl GameWebsocketServer {
 
     async fn handle_connection(
         stream: TcpStream,
-        player_manager: Arc<Mutex<PlayerManager>>, // Added parameter
+        connection_id: String,
+        game_state: Arc<Mutex<GameState>>,
+        cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
     ) -> Result<(), Box<dyn Error>> {
-        // Step 1: Upgrade to WebSocket
+        // Upgrade to WebSocket
         let ws_stream = accept_async(stream).await?;
-        println!("✅ WebSocket connection established");
+        println!("✅ WebSocket connection {} established", connection_id);
 
-        // Step 2: Split into sender and receiver
-        let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+        // Split the stream
+        let (ws_sender, mut ws_receiver) = ws_stream.split();
 
-        // Step 3: Handle messages in a loop
+        // Add connection to manager
+        cmd_sender.send(ConnectionCommand::AddConnection {
+            id: connection_id.clone(),
+            sender: ws_sender,
+        })?;
+
+        // Handle incoming messages
         while let Some(msg) = ws_receiver.next().await {
             match msg? {
                 Message::Text(text) => {
-                    println!("📨 Received JSON: {}", text);
+                    println!("📨 Connection {} received: {}", connection_id, text);
 
                     match deserialize_message(&text) {
                         Ok(game_message) => {
-                            println!("✅ Parsed ServerMessage: {:?}", game_message);
+                            println!("✅ Parsed message: {:?}", game_message);
 
-                            // Use the shared player manager - IMPORTANT: release lock before await
+                            // Process the message and determine broadcast behavior
                             let response = {
-                                let mut manager = player_manager.lock().unwrap();
-                                handle_message(game_message, &mut manager)
-                                // Lock is automatically released here
+                                let mut state = game_state.lock().await;
+                                handle_message(game_message, &mut state.player_manager)
                             };
 
-                            println!("🎮 Generated response: {:?}", response);
+                            // Re-parse the original message for pattern matching
+                            // (since we moved game_message above)
+                            let parsed_msg = deserialize_message(&text)?;
 
-                            match serialize_response(&response) {
-                                Ok(json_response) => {
-                                    println!("📤 Sending JSON: {}", json_response);
-                                    ws_sender.send(Message::Text(json_response)).await?;
+                            // Handle special cases for broadcasting
+                            match (&parsed_msg, &response) {
+                                // When someone joins, associate their connection with player ID
+                                (
+                                    ServerMessage::Join { .. },
+                                    ServerResponse::Welcome { player_id },
+                                ) => {
+                                    cmd_sender.send(ConnectionCommand::AssociatePlayer {
+                                        connection_id: connection_id.clone(),
+                                        player_id: player_id.clone(),
+                                    })?;
+
+                                    // Send welcome to the joining player
+                                    if let Ok(json) = serialize_response(&response) {
+                                        cmd_sender.send(ConnectionCommand::SendToPlayer {
+                                            player_id: player_id.clone(),
+                                            message: json,
+                                        })?;
+                                    }
+
+                                    // Broadcast join notification to everyone else
+                                    if let ServerMessage::Join { player_name } = parsed_msg {
+                                        let join_notification = ServerResponse::PlayerJoined {
+                                            player_name: player_name.clone(),
+                                        };
+                                        if let Ok(json) = serialize_response(&join_notification) {
+                                            cmd_sender.send(ConnectionCommand::SendToAll {
+                                                message: json,
+                                            })?;
+                                        }
+                                    }
                                 }
-                                Err(err) => {
-                                    eprintln!("❌ Failed to serialize response: {}", err);
-                                    let error_msg = format!(
-                                        "{{\"Error\":{{\"message\":\"Failed to serialize response: {}\"}}}}",
-                                        err
-                                    );
-                                    ws_sender.send(Message::Text(error_msg)).await?;
+
+                                // Broadcast chat messages to everyone
+                                (
+                                    ServerMessage::Chat { .. },
+                                    ServerResponse::ChatMessage { .. },
+                                ) => {
+                                    if let Ok(json) = serialize_response(&response) {
+                                        cmd_sender
+                                            .send(ConnectionCommand::SendToAll { message: json })?;
+                                    }
+                                }
+
+                                // Handle other messages normally
+                                _ => {
+                                    if let Ok(json) = serialize_response(&response) {
+                                        // For now, just send back to the sender
+                                        // You can enhance this later for specific broadcasting logic
+                                        cmd_sender
+                                            .send(ConnectionCommand::SendToAll { message: json })?;
+                                    }
                                 }
                             }
                         }
-                        Err(parse_error) => {
-                            eprintln!("❌ Failed to parse JSON: {}", parse_error);
-
+                        Err(e) => {
+                            eprintln!("❌ Failed to parse message: {}", e);
                             let error_response = ServerResponse::Error {
-                                message: format!("Invalid JSON message: {}", parse_error),
+                                message: format!("Invalid message: {}", e),
                             };
-
-                            match serialize_response(&error_response) {
-                                Ok(error_json) => {
-                                    println!("📤 Sending error: {}", error_json);
-                                    ws_sender.send(Message::Text(error_json)).await?;
-                                }
-                                Err(_) => {
-                                    // Fallback error if even error serialization fails
-                                    let fallback_error = format!(
-                                        "{{\"Error\":{{\"message\":\"Invalid JSON: {}\"}}}}",
-                                        text.replace('"', "'") // Escape quotes to prevent JSON corruption
-                                    );
-                                    ws_sender.send(Message::Text(fallback_error)).await?;
-                                }
+                            if let Ok(json) = serialize_response(&error_response) {
+                                cmd_sender.send(ConnectionCommand::SendToAll { message: json })?;
                             }
                         }
                     }
-
-                    // REMOVED: The echo line that was causing double messages
-                }
-                Message::Binary(data) => {
-                    println!("📨 Received {} bytes of binary data", data.len());
-                    // Echo back binary data
-                    ws_sender.send(Message::Binary(data)).await?;
                 }
                 Message::Close(_) => {
-                    println!("👋 Client requested close");
+                    println!("👋 Connection {} requested close", connection_id);
                     break;
                 }
                 Message::Ping(data) => {
-                    println!("🏓 Received ping");
-                    ws_sender.send(Message::Pong(data)).await?;
+                    // Handle ping/pong at connection level if needed
+                    println!("🏓 Ping from connection {}", connection_id);
                 }
-                Message::Pong(_) => {
-                    println!("🏓 Received pong");
-                }
-                Message::Frame(_) => {
-                    println!("🔧 Received raw frame (ignoring)");
+                _ => {
+                    // Handle other message types
                 }
             }
         }
 
-        println!("📴 WebSocket connection closed");
+        // Clean up when connection closes
+        cmd_sender.send(ConnectionCommand::RemoveConnection {
+            id: connection_id.clone(),
+        })?;
+
+        println!("📴 Connection {} closed", connection_id);
         Ok(())
     }
 }

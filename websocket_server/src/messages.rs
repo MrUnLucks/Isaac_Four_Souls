@@ -71,9 +71,9 @@ pub fn handle_message(msg: ServerMessage, manager: &mut PlayerManager) -> Server
 }
 
 pub fn deserialize_message(json: &str) -> Result<ServerMessage, serde_json::Error> {
-    serde_json::from_str(json)
+    from_str(json)
 }
 
 pub fn serialize_response(response: &ServerResponse) -> Result<String, serde_json::Error> {
-    serde_json::to_string(response)
+    to_string(response)
 }

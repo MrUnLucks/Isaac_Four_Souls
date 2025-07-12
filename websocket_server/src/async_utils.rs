@@ -1,7 +1,7 @@
 use tokio::time::{Duration, sleep};
 
 pub async fn simulate_network_delay() -> String {
-    tokio::time::sleep(Duration::from_millis(1000));
+    sleep(Duration::from_millis(1000));
     "Network response received".to_string()
 }
 
