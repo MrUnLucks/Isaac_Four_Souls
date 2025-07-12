@@ -1,4 +1,4 @@
-use crate::player::Player;
+use crate::Player;
 use std::collections::HashMap;
 pub struct PlayerManager {
     players: HashMap<String, Player>,

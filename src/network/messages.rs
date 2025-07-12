@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, to_string};
 
-use crate::player::Player;
-use crate::player_manager::PlayerManager;
+use crate::Player;
+use crate::PlayerManager;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ServerMessage {

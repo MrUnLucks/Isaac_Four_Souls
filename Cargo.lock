@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "Isaac_Four_Souls_Websocket"
+name = "Isaac_Four_Souls"
 version = "0.1.0"
 dependencies = [
  "dashmap",

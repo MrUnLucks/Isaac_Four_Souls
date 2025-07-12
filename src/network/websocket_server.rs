@@ -1,18 +1,18 @@
 // src/multi_client_websocket.rs
-use futures_util::{SinkExt, StreamExt, stream::SplitSink};
+use futures_util::{stream::SplitSink, SinkExt, StreamExt};
 use std::{collections::HashMap, error::Error, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{Mutex, mpsc},
+    sync::{mpsc, Mutex},
 };
-use tokio_tungstenite::{WebSocketStream, accept_async, tungstenite::Message};
+use tokio_tungstenite::{accept_async, tungstenite::Message, WebSocketStream};
 use uuid::Uuid;
 
 use crate::{
-    PlayerManager,
-    messages::{
-        ServerMessage, ServerResponse, deserialize_message, handle_message, serialize_response,
+    network::messages::{
+        deserialize_message, handle_message, serialize_response, ServerMessage, ServerResponse,
     },
+    player::manager::PlayerManager,
 };
 
 // Represents a single WebSocket connection

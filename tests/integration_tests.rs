@@ -1,9 +1,6 @@
-// tests/integration_tests.rs
-
 use isaac_four_souls::{
-    async_utils::{handle_multiple_requests, simulate_network_delay},
-    player::Player,
-    player_manager::PlayerManager,
+    utils::async_utils::{handle_multiple_requests, simulate_network_delay},
+    Player, PlayerManager,
 };
 
 #[tokio::test]

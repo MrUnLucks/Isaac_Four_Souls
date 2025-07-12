@@ -1,6 +1,7 @@
-use crate::traits::Messageable;
 use std::fmt;
 use uuid::Uuid;
+
+use crate::player::traits::Messageable;
 
 #[derive(Debug)]
 pub struct Player {
