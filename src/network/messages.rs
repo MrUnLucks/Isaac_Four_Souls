@@ -1,3 +1,4 @@
+use crate::game::resources::PlayerResources;
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, to_string};
 
@@ -9,7 +10,24 @@ pub enum ServerMessage {
     Join { player_name: String },
     Leave { player_id: String },
     Chat { player_id: String, message: String },
+    StartGame,
+    GetGameState,
+    Heal { amount: u8 },
+    TakeDamage { amount: u8 },
+    GainSouls { amount: u8 },
+    GainCoins { amount: u8 },
+    SpendCoins { amount: u8 },
     Ping,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OtherPlayerInfo {
+    pub player_id: String,
+    pub player_name: String,
+    pub health: u8,
+    pub coins: u8,
+    pub souls: u8,
+    // Don't show other players' cards!
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -26,6 +44,33 @@ pub enum ServerResponse {
     ChatMessage {
         player_name: String,
         message: String,
+    },
+    GameStarted {
+        first_player: String,
+        player_count: usize,
+    },
+    GameState {
+        your_resources: PlayerResources,
+        other_players: Vec<OtherPlayerInfo>,
+        current_player: Option<String>,
+        turn_number: u32,
+        phase: String,
+    },
+    ResourcesUpdated {
+        player_id: String,
+        new_resources: PlayerResources,
+    },
+    ActionResult {
+        success: bool,
+        message: String,
+    },
+    PlayerDied {
+        player_id: String,
+        player_name: String,
+    },
+    Victory {
+        winner_id: String,
+        winner_name: String,
     },
     Pong,
     Error {
@@ -67,6 +112,24 @@ pub fn handle_message(msg: ServerMessage, manager: &mut PlayerManager) -> Server
             None => player_not_found_error(),
         },
         ServerMessage::Ping => ServerResponse::Pong,
+        ServerMessage::TakeDamage { amount } => {
+            // Implement this when build GameState integration
+            ServerResponse::ActionResult {
+                success: false,
+                message: "Game actions not yet implemented".to_string(),
+            }
+        }
+
+        ServerMessage::GetGameState => {
+            // Placeholder - implement when have GameState
+            ServerResponse::ActionResult {
+                success: false,
+                message: "Game state not yet available".to_string(),
+            }
+        }
+        _ => ServerResponse::Error {
+            message: "Unknown game action".to_string(),
+        },
     }
 }
 
