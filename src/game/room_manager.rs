@@ -31,7 +31,7 @@ impl RoomManager {
         room_name: String,
         first_player_connection_id: String,
         first_player_name: String,
-    ) -> Result<String, String> {
+    ) -> Result<(String, String), String> {
         if room_name.trim().is_empty() {
             return Err("Room name cannot be empty".to_string()); // Frontend form handling preferably
         }
@@ -45,18 +45,18 @@ impl RoomManager {
 
         let mut room = Room::new(room_name);
         let new_player_id = room.add_player(first_player_name)?;
-
         let room_id = room.id.clone();
+
         self.connection_to_room_info.insert(
             first_player_connection_id,
             PlayerRoomInfo {
                 room_id: room_id.clone(),
-                room_player_id: new_player_id,
+                room_player_id: new_player_id.clone(),
             },
         );
         self.rooms.insert(room_id.clone(), room);
 
-        Ok(room_id)
+        Ok((room_id, new_player_id))
     }
 
     pub fn join_room(
@@ -64,7 +64,7 @@ impl RoomManager {
         room_id: &str,
         connection_id: String,
         player_name: String,
-    ) -> Result<(), String> {
+    ) -> Result<String, String> {
         if self.connection_to_room_info.contains_key(&connection_id) {
             return Err("Player already in a room".to_string());
         }
@@ -75,10 +75,10 @@ impl RoomManager {
             connection_id,
             PlayerRoomInfo {
                 room_id: room_id.to_string(),
-                room_player_id: new_player_id,
+                room_player_id: new_player_id.clone(),
             },
         );
-        Ok(())
+        Ok(new_player_id)
     }
 
     // Return player name to broadcast it

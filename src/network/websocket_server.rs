@@ -1,6 +1,6 @@
 // src/multi_client_websocket.rs
-use futures_util::{stream::SplitSink, SinkExt, StreamExt};
-use std::{collections::HashMap, error::Error, sync::Arc};
+use futures_util::{stream::SplitSink, StreamExt};
+use std::{error::Error, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::{mpsc, Mutex},
@@ -160,10 +160,10 @@ impl WebsocketServer {
         while let Some(msg) = ws_receiver.next().await {
             match msg? {
                 Message::Text(text) => {
-                    println!("📨 Connection {} received: {}", connection_id, text);
+                    println!("📨 Connection id: {} received: {}", connection_id, text);
                     match deserialize_message(&text) {
                         Ok(game_message) => {
-                            println!("✅ Parsed message: {:?}", game_message);
+                            println!("✅ Parsed message text: {:?}", game_message);
 
                             // Process the message and determine broadcast behavior
                             let response = {
@@ -179,9 +179,10 @@ impl WebsocketServer {
 
                             match (&parsed_msg, &response) {
                                 (
-                                    ServerMessage::JoinRoom { .. },
-                                    ServerResponse::PlayerJoined { player_name },
+                                    ServerMessage::JoinRoom { room_id, .. },
+                                    ServerResponse::PlayerJoined { .. },
                                 ) => {
+                                    // Send response to the joining player
                                     if let Ok(json) = serialize_response(&response) {
                                         cmd_sender.send(ConnectionCommand::SendToPlayer {
                                             connection_id: connection_id.clone(),
@@ -189,20 +190,12 @@ impl WebsocketServer {
                                         })?;
                                     }
 
-                                    if let ServerMessage::JoinRoom {
-                                        connection_id,
-                                        room_id,
-                                        player_name,
-                                    } = parsed_msg
-                                    {
-                                        let join_notification = ServerResponse::PlayerJoined {
-                                            player_name: player_name.clone(),
-                                        };
-                                        if let Ok(json) = serialize_response(&join_notification) {
-                                            cmd_sender.send(ConnectionCommand::SendToAll {
-                                                message: json,
-                                            })?;
-                                        }
+                                    // Broadcast the same response to the room
+                                    if let Ok(json) = serialize_response(&response) {
+                                        cmd_sender.send(ConnectionCommand::SendToRoom {
+                                            room_id: room_id.clone(),
+                                            message: json,
+                                        })?;
                                     }
                                 }
 

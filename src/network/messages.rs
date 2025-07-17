@@ -47,10 +47,12 @@ pub enum ServerResponse {
     },
     RoomCreated {
         room_id: String,
+        player_id: String,
     },
     RoomDestroyed,
     PlayerJoined {
         player_name: String,
+        player_id: String,
     },
     PlayerLeft {
         player_name: String,
@@ -107,9 +109,8 @@ pub fn handle_message(
         } => {
             match room_manager.create_room(room_name, connection_id.to_string(), first_player_name)
             {
-                Ok(room_id) => ServerResponse::RoomCreated { room_id },
+                Ok((room_id, player_id)) => ServerResponse::RoomCreated { room_id, player_id }, // Return both
                 Err(_) => ServerResponse::Error {
-                    // Maybe better to custom error, for prototiping is ok like this
                     message: ServerError::RoomNotFound,
                 },
             }
@@ -127,7 +128,11 @@ pub fn handle_message(
             player_name,
             room_id,
         } => match room_manager.join_room(&room_id, connection_id, player_name.clone()) {
-            Ok(_) => ServerResponse::PlayerJoined { player_name },
+            Ok(player_id) => ServerResponse::PlayerJoined {
+                // ✅ Capture the player_id here
+                player_id,
+                player_name,
+            },
             Err(_) => ServerResponse::Error {
                 message: ServerError::RoomNotFound,
             },

@@ -32,9 +32,8 @@ impl ConnectionManager {
     }
 
     pub fn remove_connection(&mut self, id: &str) {
-        if let Some(connection) = self.connections.remove(id) {
-            println!("🗑️ Removed connection: {}", id);
-        }
+        self.connections.remove(id);
+        println!("🗑️ Removed connection: {}", id);
     }
 
     pub async fn send_to_all(&mut self, message: &str) {
