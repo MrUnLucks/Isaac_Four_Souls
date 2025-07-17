@@ -1,108 +1,256 @@
-# Isaac Four Souls WebSocket Server
+# Isaac Four Souls - Multiplayer Game Server
 
-A Rust WebSocket server implementation for Isaac Four Souls game, built as a progressive learning exercise.
+A Rust-based WebSocket server for playing Isaac Four Souls, the official card game based on The Binding of Isaac. This server handles multiplayer game sessions with real-time communication between players.
 
-## Project Structure
+## 🎮 Features
+
+- **Real-time Multiplayer**: WebSocket-based communication for instant game updates
+- **Room System**: Create and join game rooms with up to 4 players
+- **Player Management**: Track player resources (health, coins, souls)
+- **Game State Management**: Handle lobby, game start, and turn phases
+- **Chat System**: In-game messaging between players
+- **Ready System**: Players can ready up to start games
+
+## 🏗️ Architecture
+
+### Core Components
+
+- **Room System** (`src/game/room.rs`): Manages individual game rooms and player sessions
+- **Room Manager** (`src/game/room_manager.rs`): Coordinates multiple rooms and player connections
+- **Player Resources** (`src/game/resources.rs`): Tracks player health, coins, and souls
+- **WebSocket Server** (`src/network/websocket_server.rs`): Handles client connections and message routing
+- **Message System** (`src/network/messages.rs`): Serializes/deserializes game messages
+- **Connection Manager** (`src/network/connection_manager.rs`): Manages WebSocket connections
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Rust 1.70+
+- Cargo
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+git clone <repository-url>
+cd isaac-four-souls
+```
+
+2. Build the project:
+
+```bash
+cargo build --release
+```
+
+3. Run the server:
+
+```bash
+cargo run
+```
+
+The server will start on `127.0.0.1:8080` by default.
+
+## 📡 WebSocket API
+
+### Message Types
+
+#### Client → Server Messages
+
+```rust
+// Ping the server
+{"Ping": null}
+
+// Create a new room
+{
+  "CreateRoom": {
+    "room_name": "My Game Room",
+    "first_player_name": "Player1"
+  }
+}
+
+// Join an existing room
+{
+  "JoinRoom": {
+    "connection_id": "conn_123",
+    "player_name": "Player2",
+    "room_id": "room_456"
+  }
+}
+
+// Send a chat message
+{
+  "Chat": {
+    "message": "Hello everyone!"
+  }
+}
+
+// Mark player as ready
+{
+  "PlayerReady": {
+    "player_id": "player_789"
+  }
+}
+
+// Leave current room
+{
+  "LeaveRoom": {
+    "connection_id": "conn_123"
+  }
+}
+```
+
+#### Server → Client Responses
+
+```rust
+// Pong response
+"Pong"
+
+// Room created successfully
+{
+  "RoomCreated": {
+    "room_id": "room_456"
+  }
+}
+
+// Player joined room
+{
+  "PlayerJoined": {
+    "player_name": "Player2"
+  }
+}
+
+// Chat message broadcast
+{
+  "ChatMessage": {
+    "player_name": "Player1",
+    "message": "Hello everyone!"
+  }
+}
+
+// Players ready status
+{
+  "PlayersReady": {
+    "players_ready": ["player_1", "player_2"]
+  }
+}
+
+// Game started
+"GameStarted"
+
+// Error response
+{
+  "Error": {
+    "message": "PlayerNotFound" // or "RoomNotFound", "UnknownResponse"
+  }
+}
+```
+
+## 🎯 Game Rules Implementation
+
+### Player Resources
+
+Each player starts with:
+
+- **Health**: 2 HP (Isaac's default)
+- **Coins**: 3 coins
+- **Souls**: 0 souls (need 4 to win)
+- **Max Coins**: 99 (Isaac rule)
+
+### Room Settings
+
+- **Max Players**: 4 per room
+- **Min Players**: 2 to start a game
+- **Room States**: Lobby → Starting → InGame → Finished
+
+## 🧪 Testing
+
+Run the test suite:
+
+```bash
+# Run all tests
+cargo test
+
+# Run specific test modules
+cargo test room_tests
+cargo test room_manager_tests
+cargo test messages_tests
+
+# Run with output
+cargo test -- --nocapture
+```
+
+### Test Coverage
+
+- ✅ Room creation and management
+- ✅ Player joining/leaving
+- ✅ Ready system and game start
+- ✅ Message serialization/deserialization
+- ✅ Error handling
+- ✅ Connection management
+
+## 🛠️ Development
+
+### Project Structure
 
 ```
 src/
-├── main.rs              # Main application entry point with async main
-├── player.rs            # Player struct with UUID-based IDs
-├── player_manager.rs    # PlayerManager for handling collections of players
-├── messages.rs          # Game message enums (ServerMessage, ServerResponse)
-├── traits.rs           # Messageable trait definition
-└── async_utils.rs      # Async utility functions for network simulation
+├── game/
+│   ├── mod.rs              # Game module exports
+│   ├── room.rs             # Individual room management
+│   ├── room_manager.rs     # Multi-room coordination
+│   ├── resources.rs        # Player resource tracking
+│   └── order.rs            # Turn order system (TODO)
+├── network/
+│   ├── mod.rs              # Network module exports
+│   ├── websocket_server.rs # Main WebSocket server
+│   ├── connection_manager.rs # Connection handling
+│   └── messages.rs         # Message types and handling
+├── lib.rs                  # Library exports
+└── main.rs                 # Server entry point
 ```
 
-## Dependencies (Cargo.toml)
+### Dependencies
 
-```toml
-[dependencies]
-uuid = { version = "1.0", features = ["v4"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tokio = { version = "1.0", features = ["full"] }
-```
+- `tokio` - Async runtime
+- `tokio-tungstenite` - WebSocket implementation
+- `serde` - JSON serialization
+- `uuid` - Unique ID generation
+- `futures-util` - Async utilities
+- `rand` - Random number generation
 
-## Completed Exercises
+## 🔄 Current Status
 
-### ✅ Exercise 1: Basic Rust Setup and Ownership
+### ✅ Implemented Features
 
-- Created `Player` struct with UUID-based IDs
-- Implemented methods: `new()`, `disconnect()`, `Display` trait
-- **Key Learning**: Structs, methods, ownership, borrowing
+- WebSocket server with connection management
+- Room creation and joining system
+- Player ready system and game start detection
+- Chat messaging
+- Player resource tracking
+- Comprehensive error handling
+- Unit test suite
 
-### ✅ Exercise 2: Collections and Error Handling
+### 🚧 In Progress
 
-- Created `PlayerManager` with `HashMap<String, Player>`
-- Implemented methods: `add_player()`, `get_player()`, `remove_player()`, `list_connected_players()`, `disconnect_player()`
-- **Key Learning**: HashMap, Option, Result, error handling, ownership transfer
+- Turn order system (see `src/game/order.rs`)
+- Game action handling
+- Card system integration
 
-### ✅ Exercise 3: Enums and Pattern Matching
+### 📋 Planned Features
 
-- Created `ServerMessage` enum: `Join`, `Leave`, `Chat`, `Ping`
-- Created `ServerResponse` enum: `Welcome`, `PlayerJoined`, `PlayerLeft`, `ChatMessage`, `Pong`, `Error`
-- Implemented `handle_message()` function with comprehensive pattern matching
-- **Key Learning**: Enums, pattern matching, comprehensive error handling
+- Complete game logic implementation
+- Card deck management
+- Victory condition handling
+- Spectator mode
+- Admin commands
 
-### ✅ Exercise 4: Traits and Generics
+## 📄 License
 
-- Created `Messageable` trait with `send_message()` and `get_id()` methods
-- Implemented trait for `Player`
-- Created generic `broadcast_to_all()` function
-- **Key Learning**: Traits, generics, trait bounds
+This project is for educational and non-commercial use only. Isaac Four Souls is a trademark of Edmund McMillen and Maestro Media.
 
-### ✅ Exercise 5: Basic Async Programming
+## 🔗 Related
 
-- Converted main to async with `#[tokio::main]`
-- Implemented `simulate_network_delay()` with tokio sleep
-- Implemented `handle_multiple_requests()` with concurrent task spawning
-- **Key Learning**: Async/await, tokio runtime, spawning tasks, concurrent execution
-
-## Current Status
-
-**Currently On**: Exercise 6 (TCP Server Basics)
-**Next Step**: Create a basic TCP server using `tokio::net::TcpListener`
-
-## Key Design Decisions Made
-
-1. **UUID-based Player IDs**: Using `String` UUIDs instead of `u32` for better uniqueness and real-world applicability
-2. **Modular Architecture**: Separated concerns into different modules for better organization
-3. **Comprehensive Error Handling**: Using `Result` and `Option` types throughout for safe error handling
-4. **Ownership-First Design**: PlayerManager owns players, external code interacts through manager methods
-
-## Code Quality Achievements
-
-- ✅ Proper Rust ownership and borrowing patterns
-- ✅ Comprehensive error handling (no unwrap() in production paths)
-- ✅ Clean separation of concerns
-- ✅ Good use of Rust idioms (derive macros, pattern matching)
-- ✅ Async-ready architecture
-
-## Remaining Exercises
-
-6. **TCP Server Basics** - Basic TCP networking with tokio
-7. **JSON Serialization** - Integration with serde for message serialization
-8. **WebSocket Server - Basic** - First WebSocket implementation
-9. **WebSocket with Message Types** - Integration of game messages with WebSocket
-10. **Multi-Client WebSocket Server** - Concurrent connection handling
-11. **Connection Management** - Proper lifecycle and cleanup
-12. **Advanced Features** - Rooms, authentication, reconnection
-
-## Notes for Next Session
-
-- All exercises build incrementally on previous work
-- Code is well-organized and ready for TCP server implementation
-- Focus on learning Rust concepts while building practical WebSocket server
-- Each exercise includes specific learning objectives and builds toward Isaac Four Souls game backend
-
-## How to Continue
-
-1. Review current code structure
-2. Run `cargo run` to test current functionality
-3. Proceed with Exercise 6: implement TCP server using `tokio::net::TcpListener`
-4. Each exercise includes clear learning focus and builds on previous concepts
-
----
-
-_This project serves as both a practical WebSocket server for Isaac Four Souls and a comprehensive Rust learning journey covering ownership, async programming, networking, and real-world application architecture._
+- [Isaac Four Souls Official Rules](https://www.isaac-four-souls.com/)
+- [The Binding of Isaac](https://bindingofisaac.com/)
