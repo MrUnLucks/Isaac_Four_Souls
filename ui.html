@@ -63,30 +63,30 @@
         <h1>🎮 Isaac Four Souls WebSocket Client</h1>
 
         <div class="controls">
-            <button onclick="connect()">Connect</button>
-            <button onclick="disconnect()">Disconnect</button>
             <span id="status">Disconnected</span>
+            <br>
+            <label for="playerNameInput">Player Name</label>
+            <input type="text" id="playerNameInput" placeholder="Player Name" value="TestPlayer">
+            <br>
+            <label for="roomNameInput">Room Name</label>
+            <input type="text" id="roomNameInput" placeholder="Room name" value="Prova">
+            <br>
+            <button onclick="joinGame()">Join Room</button>
+            <button onclick="leaveGame()">Leave Room</button>
+            <button onclick="ready()">Ready!</button>
         </div>
 
         <div class="controls">
             <h3>Game Actions:</h3>
-            <input type="text" id="playerNameInput" placeholder="Player Name" value="TestPlayer">
-            <button onclick="joinGame()">Join Game</button>
-            <br><br>
             <input type="text" id="chatInput" placeholder="Chat message">
             <button onclick="sendChat()">Send Chat</button>
-            <br><br>
             <button onclick="sendPing()">Send Ping</button>
-            <button onclick="leaveGame()">Leave Game</button>
         </div>
 
         <div class="controls">
             <h3>Raw JSON:</h3>
             <input type="text" id="rawJsonInput" placeholder='{"Ping": null}' style="width: 400px;">
             <button onclick="sendRawJson()">Send Raw JSON</button>
-            <button onclick="sendGameAction('StartGame')">Start Game</button>
-            <button onclick="sendGameAction('GetGameState')">Get Game State</button>
-            <button onclick="sendTakeDamage(1)">Take 1 Damage</button>
         </div>
 
         <h3>Messages:</h3>
@@ -123,17 +123,13 @@
             };
 
             ws.onerror = function (error) {
-                addMessage('💥 WebSocket error: ' + error, 'error');
+                addMessage('💥 WebSocket error: ' + JSON.parse(error), 'error');
             };
         }
-
-        function disconnect() {
-            if (ws) {
-                ws.close();
-            }
-        }
+        connect()
 
         function handleServerResponse(response) {
+            console.log(response)
             if (response.Welcome) {
                 currentPlayerId = response.Welcome.player_id;
                 addMessage(`🎉 Welcome! Your Player ID: ${currentPlayerId}`, 'system');
@@ -143,8 +139,8 @@
                 addMessage(`👋 ${response.PlayerLeft.player_name} left the game`, 'system');
             } else if (response.ChatMessage) {
                 addMessage(`💬 ${response.ChatMessage.player_name}: ${response.ChatMessage.message}`, 'received');
-            } else if (response.Pong) {
-                addMessage(`🏓 Pong received`, 'received');
+            } else if (response == "Pong") {
+                addMessage(`🏓 Pong received`);
             } else if (response.Error) {
                 addMessage(`❌ Error: ${response.Error.message}`, 'error');
             } else {
@@ -158,14 +154,28 @@
                 alert('Please enter a player name');
                 return;
             }
+            const roomName = document.getElementById('roomNameInput').value;
+            if (!roomName) {
+                alert('Please enter a game name');
+                return;
+            }
 
             const message = {
-                "Join": {
-                    "player_name": playerName
+                "JoinRoom": {
+                    "player_name": playerName,
+                    "room_name": roomName
                 }
             };
 
             sendJsonMessage(message);
+        }
+
+        function ready() {
+            const message = {
+                "Ready": {
+                    "player_id": currentPlayerId,
+                }
+            };
         }
 
         function sendChat() {
@@ -243,15 +253,6 @@
         // Example messages for testing
         function loadExampleMessages() {
             document.getElementById('rawJsonInput').value = '{"Ping": null}';
-        }
-        function sendGameAction(action) {
-            sendJsonMessage(action);
-        }
-
-        function sendTakeDamage(amount) {
-            sendJsonMessage({
-                "TakeDamage": { "amount": amount }
-            });
         }
 
         // Load examples on page load

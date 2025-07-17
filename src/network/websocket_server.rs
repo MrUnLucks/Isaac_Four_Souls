@@ -9,19 +9,15 @@ use tokio_tungstenite::{accept_async, tungstenite::Message, WebSocketStream};
 use uuid::Uuid;
 
 use crate::{
-    network::messages::{
-        deserialize_message, handle_message, serialize_response, ServerMessage, ServerResponse,
+    game::room_manager::RoomManager,
+    network::{
+        connection_manager::ConnectionManager,
+        messages::{
+            deserialize_message, handle_message, serialize_response, ServerError, ServerMessage,
+            ServerResponse,
+        },
     },
-    player::manager::PlayerManager,
 };
-
-// Represents a single WebSocket connection
-#[derive(Debug)]
-struct WebSocketConnection {
-    id: String,
-    player_id: Option<String>, // None until they join the game
-    sender: SplitSink<WebSocketStream<TcpStream>, Message>,
-}
 
 // Commands sent to the connection manager
 #[derive(Debug)]
@@ -36,143 +32,34 @@ enum ConnectionCommand {
     SendToAll {
         message: String,
     },
-    SendToPlayer {
-        player_id: String,
+    SendToRoom {
+        room_id: String,
         message: String,
     },
-    AssociatePlayer {
+    SendToPlayer {
         connection_id: String,
-        player_id: String,
+        message: String,
     },
 }
-
-// Manages all active WebSocket connections
-struct ConnectionManager {
-    connections: HashMap<String, WebSocketConnection>,
-}
-
-impl ConnectionManager {
-    fn new() -> Self {
-        Self {
-            connections: HashMap::new(),
-        }
-    }
-
-    fn add_connection(
-        &mut self,
-        id: String,
-        sender: SplitSink<WebSocketStream<TcpStream>, Message>,
-    ) {
-        let connection = WebSocketConnection {
-            id: id.clone(),
-            player_id: None,
-            sender,
-        };
-        self.connections.insert(id.clone(), connection);
-        println!(
-            "📝 Added connection: {} (Total: {})",
-            id,
-            self.connections.len()
-        );
-    }
-
-    fn remove_connection(&mut self, id: &str) {
-        if let Some(connection) = self.connections.remove(id) {
-            println!(
-                "🗑️ Removed connection: {} (Total: {})",
-                id,
-                self.connections.len()
-            );
-            if let Some(player_id) = connection.player_id {
-                println!("👋 Player {} disconnected", player_id);
-            }
-        }
-    }
-
-    fn associate_player(&mut self, connection_id: &str, player_id: String) {
-        if let Some(connection) = self.connections.get_mut(connection_id) {
-            connection.player_id = Some(player_id.clone());
-            println!(
-                "🔗 Associated connection {} with player {}",
-                connection_id, player_id
-            );
-        }
-    }
-
-    async fn send_to_all(&mut self, message: &str) {
-        println!(
-            "📢 Broadcasting to {} connections: {}",
-            self.connections.len(),
-            message
-        );
-
-        let mut failed_connections = Vec::new();
-
-        for (id, connection) in &mut self.connections {
-            if let Err(e) = connection
-                .sender
-                .send(Message::Text(message.to_string()))
-                .await
-            {
-                eprintln!("❌ Failed to send to connection {}: {}", id, e);
-                failed_connections.push(id.clone());
-            }
-        }
-
-        // Remove failed connections
-        for failed_id in failed_connections {
-            self.remove_connection(&failed_id);
-        }
-    }
-
-    async fn send_to_player(&mut self, player_id: &str, message: &str) {
-        let mut connection_to_send = None;
-
-        // Find the connection for this player
-        for (conn_id, connection) in &self.connections {
-            if let Some(ref conn_player_id) = connection.player_id {
-                if conn_player_id == player_id {
-                    connection_to_send = Some(conn_id.clone());
-                    break;
-                }
-            }
-        }
-
-        if let Some(conn_id) = connection_to_send {
-            if let Some(connection) = self.connections.get_mut(&conn_id) {
-                if let Err(e) = connection
-                    .sender
-                    .send(Message::Text(message.to_string()))
-                    .await
-                {
-                    eprintln!("❌ Failed to send to player {}: {}", player_id, e);
-                    self.remove_connection(&conn_id);
-                }
-            }
-        }
-    }
-}
-
-// Combined game state
-struct GameState {
-    player_manager: PlayerManager,
+struct LobbyState {
+    room_manager: RoomManager,
     connection_manager: ConnectionManager,
 }
 
-impl GameState {
+impl LobbyState {
     fn new() -> Self {
         Self {
-            player_manager: PlayerManager::new(),
+            room_manager: RoomManager::new(),
             connection_manager: ConnectionManager::new(),
         }
     }
 }
 
-pub struct MultiClientWebSocketServer {
+pub struct WebsocketServer {
     address: String,
 }
 
-impl MultiClientWebSocketServer {
+impl WebsocketServer {
     pub fn new(address: &str) -> Self {
         Self {
             address: address.to_string(),
@@ -181,22 +68,18 @@ impl MultiClientWebSocketServer {
 
     pub async fn run(&self) -> Result<(), Box<dyn Error>> {
         let listener = TcpListener::bind(&self.address).await?;
-        println!(
-            "🌐 Multi-Client WebSocket Server listening on {}",
-            self.address
-        );
 
         // Create shared game state
-        let game_state = Arc::new(Mutex::new(GameState::new()));
+        let lobby_state = Arc::new(Mutex::new(LobbyState::new()));
 
         // Create channel for connection management commands
         let (cmd_sender, mut cmd_receiver) = mpsc::unbounded_channel::<ConnectionCommand>();
 
         // Spawn connection manager task
-        let game_state_clone = game_state.clone();
+        let lobby_state_clone = lobby_state.clone();
         tokio::spawn(async move {
             while let Some(command) = cmd_receiver.recv().await {
-                let mut state = game_state_clone.lock().await;
+                let mut state = lobby_state_clone.lock().await;
 
                 match command {
                     ConnectionCommand::AddConnection { id, sender } => {
@@ -208,19 +91,27 @@ impl MultiClientWebSocketServer {
                     ConnectionCommand::SendToAll { message } => {
                         state.connection_manager.send_to_all(&message).await;
                     }
-                    ConnectionCommand::SendToPlayer { player_id, message } => {
-                        state
-                            .connection_manager
-                            .send_to_player(&player_id, &message)
-                            .await;
-                    }
-                    ConnectionCommand::AssociatePlayer {
+                    ConnectionCommand::SendToPlayer {
                         connection_id,
-                        player_id,
+                        message,
                     } => {
                         state
                             .connection_manager
-                            .associate_player(&connection_id, player_id);
+                            .send_to_player(&connection_id, &message)
+                            .await;
+                    }
+                    ConnectionCommand::SendToRoom { room_id, message } => {
+                        match state.room_manager.get_player_list(&room_id) {
+                            None => println!("No room found"),
+                            Some(player_id_vec) => {
+                                for player_id in player_id_vec {
+                                    state
+                                        .connection_manager
+                                        .send_to_player(&player_id, &message)
+                                        .await;
+                                }
+                            }
+                        };
                     }
                 }
             }
@@ -231,12 +122,12 @@ impl MultiClientWebSocketServer {
             println!("🔗 New connection from: {}", addr);
             let connection_id = Uuid::new_v4().to_string();
 
-            let game_state = game_state.clone();
+            let lobby_state = lobby_state.clone();
             let cmd_sender = cmd_sender.clone();
 
             tokio::spawn(async move {
                 if let Err(e) =
-                    Self::handle_connection(stream, connection_id, game_state, cmd_sender).await
+                    Self::handle_connection(stream, connection_id, lobby_state, cmd_sender).await
                 {
                     eprintln!("❌ Error handling connection: {}", e);
                 }
@@ -249,7 +140,7 @@ impl MultiClientWebSocketServer {
     async fn handle_connection(
         stream: TcpStream,
         connection_id: String,
-        game_state: Arc<Mutex<GameState>>,
+        lobby_state: Arc<Mutex<LobbyState>>,
         cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
     ) -> Result<(), Box<dyn Error>> {
         // Upgrade to WebSocket
@@ -270,43 +161,40 @@ impl MultiClientWebSocketServer {
             match msg? {
                 Message::Text(text) => {
                     println!("📨 Connection {} received: {}", connection_id, text);
-
                     match deserialize_message(&text) {
                         Ok(game_message) => {
                             println!("✅ Parsed message: {:?}", game_message);
 
                             // Process the message and determine broadcast behavior
                             let response = {
-                                let mut state = game_state.lock().await;
-                                handle_message(game_message, &mut state.player_manager)
+                                let mut state = lobby_state.lock().await;
+                                handle_message(
+                                    game_message,
+                                    &mut state.room_manager,
+                                    &connection_id,
+                                )
                             };
 
-                            // Re-parse the original message for pattern matching
-                            // (since we moved game_message above)
                             let parsed_msg = deserialize_message(&text)?;
 
-                            // Handle special cases for broadcasting
                             match (&parsed_msg, &response) {
-                                // When someone joins, associate their connection with player ID
                                 (
-                                    ServerMessage::Join { .. },
-                                    ServerResponse::Welcome { player_id },
+                                    ServerMessage::JoinRoom { .. },
+                                    ServerResponse::PlayerJoined { player_name },
                                 ) => {
-                                    cmd_sender.send(ConnectionCommand::AssociatePlayer {
-                                        connection_id: connection_id.clone(),
-                                        player_id: player_id.clone(),
-                                    })?;
-
-                                    // Send welcome to the joining player
                                     if let Ok(json) = serialize_response(&response) {
                                         cmd_sender.send(ConnectionCommand::SendToPlayer {
-                                            player_id: player_id.clone(),
+                                            connection_id: connection_id.clone(),
                                             message: json,
                                         })?;
                                     }
 
-                                    // Broadcast join notification to everyone else
-                                    if let ServerMessage::Join { player_name } = parsed_msg {
+                                    if let ServerMessage::JoinRoom {
+                                        connection_id,
+                                        room_id,
+                                        player_name,
+                                    } = parsed_msg
+                                    {
                                         let join_notification = ServerResponse::PlayerJoined {
                                             player_name: player_name.clone(),
                                         };
@@ -318,7 +206,6 @@ impl MultiClientWebSocketServer {
                                     }
                                 }
 
-                                // Broadcast chat messages to everyone
                                 (
                                     ServerMessage::Chat { .. },
                                     ServerResponse::ChatMessage { .. },
@@ -328,7 +215,16 @@ impl MultiClientWebSocketServer {
                                             .send(ConnectionCommand::SendToAll { message: json })?;
                                     }
                                 }
-
+                                (
+                                    ServerMessage::PlayerReady { player_id },
+                                    ServerResponse::GameStarted { .. },
+                                ) => {
+                                    println!("{:?}", response);
+                                    if let Ok(json) = serialize_response(&response) {
+                                        cmd_sender
+                                            .send(ConnectionCommand::SendToAll { message: json })?;
+                                    }
+                                }
                                 // Handle other messages normally
                                 _ => {
                                     if let Ok(json) = serialize_response(&response) {
@@ -343,7 +239,7 @@ impl MultiClientWebSocketServer {
                         Err(e) => {
                             eprintln!("❌ Failed to parse message: {}", e);
                             let error_response = ServerResponse::Error {
-                                message: format!("Invalid message: {}", e),
+                                message: ServerError::UnknownResponse,
                             };
                             if let Ok(json) = serialize_response(&error_response) {
                                 cmd_sender.send(ConnectionCommand::SendToAll { message: json })?;
@@ -354,10 +250,6 @@ impl MultiClientWebSocketServer {
                 Message::Close(_) => {
                     println!("👋 Connection {} requested close", connection_id);
                     break;
-                }
-                Message::Ping(data) => {
-                    // Handle ping/pong at connection level if needed
-                    println!("🏓 Ping from connection {}", connection_id);
                 }
                 _ => {
                     // Handle other message types

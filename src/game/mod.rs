@@ -1,2 +1,2 @@
-pub mod resources;
-pub mod state;
+pub mod room;
+pub mod room_manager;

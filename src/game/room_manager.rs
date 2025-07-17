@@ -1,0 +1,164 @@
+use crate::Room;
+use std::collections::{HashMap, HashSet};
+
+#[derive(Debug, Clone)]
+pub struct PlayerRoomInfo {
+    pub room_id: String,
+    pub room_player_id: String,
+}
+
+pub struct RoomManager {
+    rooms: HashMap<String, Room>,
+    pub connection_to_room_info: HashMap<String, PlayerRoomInfo>, // connection_id -> room info
+}
+
+#[derive(Debug)]
+pub struct ReadyPlayerResult {
+    pub players_ready: HashSet<String>,
+    pub game_started: bool,
+}
+
+impl RoomManager {
+    pub fn new() -> Self {
+        Self {
+            rooms: HashMap::new(),
+            connection_to_room_info: HashMap::new(),
+        }
+    }
+
+    pub fn create_room(
+        &mut self,
+        room_name: String,
+        first_player_connection_id: String,
+        first_player_name: String,
+    ) -> Result<String, String> {
+        if room_name.trim().is_empty() {
+            return Err("Room name cannot be empty".to_string()); // Frontend form handling preferably
+        }
+
+        if self
+            .connection_to_room_info
+            .contains_key(&first_player_connection_id)
+        {
+            return Err("Player already in a room".to_string());
+        }
+
+        let mut room = Room::new(room_name);
+        let new_player_id = room.add_player(first_player_name)?;
+
+        let room_id = room.id.clone();
+        self.connection_to_room_info.insert(
+            first_player_connection_id,
+            PlayerRoomInfo {
+                room_id: room_id.clone(),
+                room_player_id: new_player_id,
+            },
+        );
+        self.rooms.insert(room_id.clone(), room);
+
+        Ok(room_id)
+    }
+
+    pub fn join_room(
+        &mut self,
+        room_id: &str,
+        connection_id: String,
+        player_name: String,
+    ) -> Result<(), String> {
+        if self.connection_to_room_info.contains_key(&connection_id) {
+            return Err("Player already in a room".to_string());
+        }
+
+        let room = self.rooms.get_mut(room_id).ok_or("Room not found")?;
+        let new_player_id = room.add_player(player_name)?;
+        self.connection_to_room_info.insert(
+            connection_id,
+            PlayerRoomInfo {
+                room_id: room_id.to_string(),
+                room_player_id: new_player_id,
+            },
+        );
+        Ok(())
+    }
+
+    // Return player name to broadcast it
+    pub fn leave_room(&mut self, connection_id: &str) -> Result<String, String> {
+        // Remove player from connection mapping
+        let PlayerRoomInfo {
+            room_id,
+            room_player_id,
+        } = self
+            .connection_to_room_info
+            .remove(connection_id)
+            .ok_or_else(|| "Player not in any room".to_string())?;
+
+        // Get the room and remove the player
+        let room = self
+            .rooms
+            .get_mut(&room_id)
+            .ok_or_else(|| "Room not found".to_string())?;
+
+        let removed_player_name = room.remove_player(&room_player_id)?;
+
+        // Clean up empty room
+        if room.player_count() == 0 {
+            self.rooms.remove(&room_id);
+        }
+
+        Ok(removed_player_name)
+    }
+
+    pub fn get_room_mut(&mut self, room_id: &str) -> Option<&mut Room> {
+        self.rooms.get_mut(room_id)
+    }
+
+    pub fn destroy_room(&mut self, room_id: &str) -> Result<(), String> {
+        self.rooms
+            .remove(room_id)
+            .map(|_| ())
+            .ok_or_else(|| "Room not found".to_string())
+    }
+
+    pub fn ready_player(&mut self, player_id: &str) -> Result<ReadyPlayerResult, String> {
+        let room_id = Self::get_player_room_from_player_id(self, player_id)
+            .ok_or_else(|| "Player not found".to_string())?;
+
+        let room = self
+            .rooms
+            .get_mut(&room_id)
+            .ok_or("Room not found".to_string())?;
+
+        // Add player to ready list
+        let players_ready = room.add_player_ready(player_id)?;
+
+        // Check if game can start after this player readied up
+        let game_started = if room.can_start_game() {
+            room.start_game().ok();
+            true
+        } else {
+            false
+        };
+
+        Ok(ReadyPlayerResult {
+            players_ready,
+            game_started,
+        })
+    }
+
+    pub fn get_player_room_from_player_id(&self, player_id: &str) -> Option<String> {
+        self.connection_to_room_info
+            .values()
+            .find(|info| info.room_player_id == player_id)
+            .map(|info| info.room_id.clone())
+    }
+
+    pub fn get_player_room_from_connection_id(&self, connection_id: &str) -> Option<String> {
+        self.connection_to_room_info
+            .get(connection_id)
+            .map(|player| player.room_id.clone())
+    }
+
+    pub fn get_player_list(&self, room_id: &str) -> Option<Vec<String>> {
+        self.rooms.get(room_id).map(|x| x.get_players_id())
+    }
+}

@@ -1,134 +1,164 @@
-use crate::game::resources::PlayerResources;
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, to_string};
 
-use crate::Player;
-use crate::PlayerManager;
+use crate::game::room_manager::RoomManager;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ServerMessage {
-    Join { player_name: String },
-    Leave { player_id: String },
-    Chat { player_id: String, message: String },
-    StartGame,
-    GetGameState,
-    Heal { amount: u8 },
-    TakeDamage { amount: u8 },
-    GainSouls { amount: u8 },
-    GainCoins { amount: u8 },
-    SpendCoins { amount: u8 },
     Ping,
+    Chat {
+        message: String,
+    },
+    CreateRoom {
+        room_name: String,
+        first_player_name: String,
+    },
+    DestroyRoom {
+        room_id: String,
+    },
+    JoinRoom {
+        connection_id: String,
+        player_name: String,
+        room_id: String,
+    },
+    LeaveRoom {
+        connection_id: String,
+    },
+    PlayerReady {
+        player_id: String,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct OtherPlayerInfo {
-    pub player_id: String,
-    pub player_name: String,
-    pub health: u8,
-    pub coins: u8,
-    pub souls: u8,
-    // Don't show other players' cards!
+pub enum ServerError {
+    PlayerNotFound,
+    RoomNotFound,
+    UnknownResponse,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ServerResponse {
-    Welcome {
-        player_id: String,
+    Pong,
+    ChatMessage {
+        player_name: String,
+        message: String,
     },
+    RoomCreated {
+        room_id: String,
+    },
+    RoomDestroyed,
     PlayerJoined {
         player_name: String,
     },
     PlayerLeft {
         player_name: String,
     },
-    ChatMessage {
-        player_name: String,
-        message: String,
+    PlayersReady {
+        players_ready: HashSet<String>,
     },
-    GameStarted {
-        first_player: String,
-        player_count: usize,
-    },
-    GameState {
-        your_resources: PlayerResources,
-        other_players: Vec<OtherPlayerInfo>,
-        current_player: Option<String>,
-        turn_number: u32,
-        phase: String,
-    },
-    ResourcesUpdated {
-        player_id: String,
-        new_resources: PlayerResources,
-    },
-    ActionResult {
-        success: bool,
-        message: String,
-    },
-    PlayerDied {
-        player_id: String,
-        player_name: String,
-    },
-    Victory {
-        winner_id: String,
-        winner_name: String,
-    },
-    Pong,
+    GameStarted,
     Error {
-        message: String,
+        message: ServerError,
     },
 }
 
 fn player_not_found_error() -> ServerResponse {
     ServerResponse::Error {
-        message: "Player not found".to_string(),
+        message: ServerError::PlayerNotFound,
     }
 }
 
-pub fn handle_message(msg: ServerMessage, manager: &mut PlayerManager) -> ServerResponse {
+pub fn handle_message(
+    msg: ServerMessage,
+    room_manager: &mut RoomManager,
+    connection_id: &str,
+) -> ServerResponse {
     match msg {
-        ServerMessage::Chat { player_id, message } => {
-            if let Some(player) = manager.get_player(&player_id) {
-                ServerResponse::ChatMessage {
-                    player_name: player.name.clone(),
-                    message, // Shorthand when field name matches variable
-                }
-            } else {
-                player_not_found_error()
-            }
-        }
-        ServerMessage::Join { player_name } => {
-            let player = Player::new(&player_name);
-            let player_id = player.id.clone();
-            let added_player = manager.add_player(player);
-            match added_player {
-                Ok(()) => ServerResponse::Welcome { player_id },
-                Err(err) => ServerResponse::Error { message: err },
-            }
-        }
-        ServerMessage::Leave { player_id } => match manager.remove_player(&player_id) {
-            Some(player) => ServerResponse::PlayerLeft {
-                player_name: player.name,
-            },
-            None => player_not_found_error(),
-        },
         ServerMessage::Ping => ServerResponse::Pong,
-        ServerMessage::TakeDamage { amount } => {
-            // Implement this when build GameState integration
-            ServerResponse::ActionResult {
-                success: false,
-                message: "Game actions not yet implemented".to_string(),
+
+        // TODO: helper function inside room_manager
+        ServerMessage::Chat { message } => {
+            let room_info = room_manager.connection_to_room_info.get(connection_id);
+
+            if let Some(room_info) = room_info {
+                let room_id = room_info.room_id.clone();
+                let room_player_id = room_info.room_player_id.clone();
+
+                if let Some(room) = room_manager.get_room_mut(&room_id) {
+                    if let Some(player_name) = room.get_player(&room_player_id) {
+                        return ServerResponse::ChatMessage {
+                            player_name: player_name.clone(),
+                            message,
+                        };
+                    }
+                }
+            }
+
+            ServerResponse::Error {
+                message: ServerError::PlayerNotFound,
             }
         }
 
-        ServerMessage::GetGameState => {
-            // Placeholder - implement when have GameState
-            ServerResponse::ActionResult {
-                success: false,
-                message: "Game state not yet available".to_string(),
+        ServerMessage::CreateRoom {
+            room_name,
+            first_player_name,
+        } => {
+            match room_manager.create_room(room_name, connection_id.to_string(), first_player_name)
+            {
+                Ok(room_id) => ServerResponse::RoomCreated { room_id },
+                Err(_) => ServerResponse::Error {
+                    // Maybe better to custom error, for prototiping is ok like this
+                    message: ServerError::RoomNotFound,
+                },
             }
         }
+
+        ServerMessage::DestroyRoom { room_id } => match room_manager.destroy_room(&room_id) {
+            Ok(()) => ServerResponse::RoomDestroyed,
+            Err(_) => ServerResponse::Error {
+                message: ServerError::RoomNotFound,
+            },
+        },
+
+        ServerMessage::JoinRoom {
+            connection_id,
+            player_name,
+            room_id,
+        } => match room_manager.join_room(&room_id, connection_id, player_name.clone()) {
+            Ok(_) => ServerResponse::PlayerJoined { player_name },
+            Err(_) => ServerResponse::Error {
+                message: ServerError::RoomNotFound,
+            },
+        },
+
+        ServerMessage::LeaveRoom { connection_id } => {
+            match room_manager.leave_room(&connection_id) {
+                Ok(player_name) => ServerResponse::PlayerLeft { player_name },
+                Err(_) => ServerResponse::Error {
+                    // Actually both error (room and player) are incapsulated here, need better handling in the future
+                    message: ServerError::PlayerNotFound,
+                },
+            }
+        }
+
+        ServerMessage::PlayerReady { player_id } => match room_manager.ready_player(&player_id) {
+            Err(_) => ServerResponse::Error {
+                message: ServerError::RoomNotFound,
+            },
+            Ok(ready_result) => {
+                if ready_result.game_started {
+                    ServerResponse::GameStarted
+                } else {
+                    ServerResponse::PlayersReady {
+                        players_ready: ready_result.players_ready,
+                    }
+                }
+            }
+        },
         _ => ServerResponse::Error {
-            message: "Unknown game action".to_string(),
+            message: ServerError::UnknownResponse,
         },
     }
 }
