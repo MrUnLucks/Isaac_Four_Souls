@@ -77,6 +77,7 @@ pub fn handle_message(
     room_manager: &mut RoomManager,
     connection_id: &str,
 ) -> ServerResponse {
+    println!("Handle_message_connection_id{}", connection_id);
     match msg {
         ServerMessage::Ping => ServerResponse::Pong,
 
@@ -141,10 +142,13 @@ pub fn handle_message(
         ServerMessage::LeaveRoom { connection_id } => {
             match room_manager.leave_room(&connection_id) {
                 Ok(player_name) => ServerResponse::PlayerLeft { player_name },
-                Err(_) => ServerResponse::Error {
-                    // Actually both error (room and player) are incapsulated here, need better handling in the future
-                    message: ServerError::PlayerNotFound,
-                },
+                Err(err) => {
+                    println!("{}", err);
+                    ServerResponse::Error {
+                        // Actually both error (room and player) are incapsulated here, need better handling in the future
+                        message: ServerError::PlayerNotFound,
+                    }
+                }
             }
         }
 

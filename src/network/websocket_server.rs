@@ -156,6 +156,12 @@ impl WebsocketServer {
             sender: ws_sender,
         })?;
 
+        cmd_sender.send(ConnectionCommand::SendToPlayer {
+            connection_id: connection_id.clone(),
+            // message: "{\"Connection_id\": \"ciao\"}".to_string(),
+            message: format!(r#"{{"Connection_id":"{}"}}"#, connection_id.clone()),
+        })?;
+
         // Handle incoming messages
         while let Some(msg) = ws_receiver.next().await {
             match msg? {

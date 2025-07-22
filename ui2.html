@@ -287,8 +287,6 @@
             ws.onopen = function () {
                 addMessage('✅ Connected to Isaac Four Souls server!', 'system');
                 document.getElementById('status').textContent = 'Connected';
-                // Generate a client-side connection ID for tracking
-                connectionId = 'client-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
                 updateDebugInfo();
             };
 
@@ -366,7 +364,13 @@
 
             if (response === "Pong") {
                 addMessage('🏓 Pong received', 'success');
-            } else if (response.RoomCreated) {
+            }
+            else if (response.Connection_id) {
+                addMessage('Fatta fratm', 'success');
+                connectionId = response.Connection_id;
+                updateDebugInfo();
+            }
+            else if (response.RoomCreated) {
                 currentRoomId = response.RoomCreated.room_id;
                 roomPlayerId = response.RoomCreated.player_id
                 currentRoomName = document.getElementById('roomNameInput').value;

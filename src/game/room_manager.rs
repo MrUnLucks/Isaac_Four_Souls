@@ -35,7 +35,7 @@ impl RoomManager {
         if room_name.trim().is_empty() {
             return Err("Room name cannot be empty".to_string()); // Frontend form handling preferably
         }
-
+        println!("FPCID{}", first_player_connection_id);
         if self
             .connection_to_room_info
             .contains_key(&first_player_connection_id)
@@ -84,6 +84,7 @@ impl RoomManager {
     // Return player name to broadcast it
     pub fn leave_room(&mut self, connection_id: &str) -> Result<String, String> {
         // Remove player from connection mapping
+        println!("{:?}", self.connection_to_room_info);
         let PlayerRoomInfo {
             room_id,
             room_player_id,
