@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
-use serde_json::{from_str, to_string};
 
 use crate::game::room_manager::{RoomManager, RoomManagerError};
 
@@ -133,11 +132,11 @@ pub fn handle_message(
 }
 
 pub fn deserialize_message(json: &str) -> Result<ServerMessage, serde_json::Error> {
-    from_str(json)
+    serde_json::from_str(json)
 }
 
 pub fn serialize_response(response: &ServerResponse) -> Result<String, serde_json::Error> {
-    to_string(response)
+    serde_json::to_string(response)
 }
 
 #[derive(Debug, Serialize)]

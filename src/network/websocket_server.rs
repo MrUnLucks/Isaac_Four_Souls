@@ -217,7 +217,6 @@ impl WebsocketServer {
                                     },
                                     ServerResponse::GameStarted { .. },
                                 ) => {
-                                    println!("Match doppio playerReady{:?}", response);
                                     if let Ok(json) = serialize_response(&response) {
                                         cmd_sender
                                             .send(ConnectionCommand::SendToAll { message: json })?;

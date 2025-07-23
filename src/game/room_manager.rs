@@ -134,7 +134,7 @@ impl RoomManager {
         let players_ready = room.add_player_ready(player_id)?;
 
         let game_started = if room.can_start_game() {
-            room.start_game().ok();
+            room.start_game()?;
             true
         } else {
             false
