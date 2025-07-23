@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, to_string};
 
-use crate::game::room_manager::RoomManager;
+use crate::game::room_manager::{RoomManager, RoomManagerError};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ServerMessage {
@@ -31,14 +31,7 @@ pub enum ServerMessage {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub enum ServerError {
-    PlayerNotFound,
-    RoomNotFound,
-    UnknownResponse,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub enum ServerResponse {
     Pong,
     ChatMessage {
@@ -64,12 +57,6 @@ pub enum ServerResponse {
     Error {
         message: ServerError,
     },
-}
-
-fn player_not_found_error() -> ServerResponse {
-    ServerResponse::Error {
-        message: ServerError::PlayerNotFound,
-    }
 }
 
 pub fn handle_message(
@@ -141,9 +128,9 @@ pub fn handle_message(
             match room_manager.leave_room(&connection_id) {
                 Ok(player_name) => ServerResponse::PlayerLeft { player_name },
                 Err(err) => {
-                    println!("{}", err);
+                    println!("{:?}", err);
+                    // Actually both error (room and player) are incapsulated here, need better handling in the future
                     ServerResponse::Error {
-                        // Actually both error (room and player) are incapsulated here, need better handling in the future
                         message: ServerError::PlayerNotFound,
                     }
                 }
@@ -164,9 +151,6 @@ pub fn handle_message(
                 }
             }
         },
-        _ => ServerResponse::Error {
-            message: ServerError::UnknownResponse,
-        },
     }
 }
 
@@ -176,4 +160,17 @@ pub fn deserialize_message(json: &str) -> Result<ServerMessage, serde_json::Erro
 
 pub fn serialize_response(response: &ServerResponse) -> Result<String, serde_json::Error> {
     to_string(response)
+}
+
+#[derive(Debug, Serialize)]
+pub enum ServerError {
+    PlayerNotFound,
+    RoomNotFound,
+    RoomManagerError(RoomManagerError),
+    UnknownResponse,
+}
+impl From<RoomManagerError> for ServerError {
+    fn from(err: RoomManagerError) -> Self {
+        ServerError::RoomManagerError(err)
+    }
 }

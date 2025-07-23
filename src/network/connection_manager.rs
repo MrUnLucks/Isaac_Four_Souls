@@ -4,7 +4,6 @@ use tokio::net::TcpStream;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
 #[derive(Debug)]
 struct WebSocketConnection {
-    id: String,
     sender: SplitSink<WebSocketStream<TcpStream>, Message>,
 }
 pub struct ConnectionManager {
@@ -22,10 +21,7 @@ impl ConnectionManager {
         id: String,
         sender: SplitSink<WebSocketStream<TcpStream>, Message>,
     ) {
-        let connection = WebSocketConnection {
-            id: id.clone(),
-            sender,
-        };
+        let connection = WebSocketConnection { sender };
         self.connections.insert(id.clone(), connection);
         println!("📝 Added connection: {}", id);
     }
