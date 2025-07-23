@@ -150,10 +150,12 @@ impl WebsocketServer {
             sender: ws_sender,
         })?;
 
-        // Temporary handling for giving client connection_id on connect
+        let connection_id_message = serialize_response(&ServerResponse::ConnectionId {
+            connection_id: connection_id.clone(),
+        })?;
         cmd_sender.send(ConnectionCommand::SendToPlayer {
             connection_id: connection_id.clone(),
-            message: format!(r#"{{"Connection_id":"{}"}}"#, connection_id.clone()),
+            message: connection_id_message,
         })?;
 
         // Handle incoming messages

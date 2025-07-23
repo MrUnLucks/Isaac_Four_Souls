@@ -32,6 +32,9 @@ pub enum ServerMessage {
 
 #[derive(Debug, Serialize)]
 pub enum ServerResponse {
+    ConnectionId {
+        connection_id: String,
+    },
     Pong,
     ChatMessage {
         player_name: String,
