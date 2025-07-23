@@ -77,7 +77,6 @@ pub fn handle_message(
     room_manager: &mut RoomManager,
     connection_id: &str,
 ) -> ServerResponse {
-    println!("Handle_message_connection_id{}", connection_id);
     match msg {
         ServerMessage::Ping => ServerResponse::Pong,
 
