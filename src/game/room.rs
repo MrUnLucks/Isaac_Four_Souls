@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Room {
     pub id: String,
     pub name: String,
@@ -29,7 +29,7 @@ impl Room {
         Self {
             id: Uuid::new_v4().to_string(),
             name,
-            players: HashMap::new(), // Add first handled in room_manager!
+            players: HashMap::new(), // Add-first-player handled in room_manager!
             players_ready: HashSet::new(),
             state: RoomState::Lobby,
             max_players: Self::DEFAULT_MAX_PLAYERS,

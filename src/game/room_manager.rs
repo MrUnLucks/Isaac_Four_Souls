@@ -91,7 +91,6 @@ impl RoomManager {
             .remove(connection_id)
             .ok_or_else(|| "Player not in any room".to_string())?;
 
-        // Get the room and remove the player
         let room = self
             .rooms
             .get_mut(&room_id)
@@ -99,7 +98,6 @@ impl RoomManager {
 
         let removed_player_name = room.remove_player(&room_player_id)?;
 
-        // Clean up empty room
         if room.player_count() == 0 {
             self.rooms.remove(&room_id);
         }
@@ -129,10 +127,8 @@ impl RoomManager {
             .get_mut(&room_id)
             .ok_or("Room not found".to_string())?;
 
-        // Add player to ready list
         let players_ready = room.add_player_ready(player_id)?;
 
-        // Check if game can start after this player readied up
         let game_started = if room.can_start_game() {
             room.start_game().ok();
             true

@@ -2,7 +2,6 @@ use futures_util::{stream::SplitSink, SinkExt};
 use std::collections::HashMap;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
-// Represents a single WebSocket connection
 #[derive(Debug)]
 struct WebSocketConnection {
     id: String,

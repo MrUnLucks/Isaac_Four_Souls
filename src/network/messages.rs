@@ -109,7 +109,7 @@ pub fn handle_message(
         } => {
             match room_manager.create_room(room_name, connection_id.to_string(), first_player_name)
             {
-                Ok((room_id, player_id)) => ServerResponse::RoomCreated { room_id, player_id }, // Return both
+                Ok((room_id, player_id)) => ServerResponse::RoomCreated { room_id, player_id },
                 Err(_) => ServerResponse::Error {
                     message: ServerError::RoomNotFound,
                 },
@@ -129,7 +129,6 @@ pub fn handle_message(
             room_id,
         } => match room_manager.join_room(&room_id, connection_id, player_name.clone()) {
             Ok(player_id) => ServerResponse::PlayerJoined {
-                // ✅ Capture the player_id here
                 player_id,
                 player_name,
             },

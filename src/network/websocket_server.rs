@@ -1,4 +1,3 @@
-// src/multi_client_websocket.rs
 use futures_util::{stream::SplitSink, StreamExt};
 use std::{error::Error, sync::Arc};
 use tokio::{
@@ -19,7 +18,6 @@ use crate::{
     },
 };
 
-// Commands sent to the connection manager
 #[derive(Debug)]
 enum ConnectionCommand {
     AddConnection {
@@ -69,7 +67,6 @@ impl WebsocketServer {
     pub async fn run(&self) -> Result<(), Box<dyn Error>> {
         let listener = TcpListener::bind(&self.address).await?;
 
-        // Create shared game state
         let lobby_state = Arc::new(Mutex::new(LobbyState::new()));
 
         // Create channel for connection management commands
@@ -143,22 +140,19 @@ impl WebsocketServer {
         lobby_state: Arc<Mutex<LobbyState>>,
         cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
     ) -> Result<(), Box<dyn Error>> {
-        // Upgrade to WebSocket
         let ws_stream = accept_async(stream).await?;
         println!("✅ WebSocket connection {} established", connection_id);
 
-        // Split the stream
         let (ws_sender, mut ws_receiver) = ws_stream.split();
 
-        // Add connection to manager
         cmd_sender.send(ConnectionCommand::AddConnection {
             id: connection_id.clone(),
             sender: ws_sender,
         })?;
 
+        // Temporary handling for giving client connection_id on connect
         cmd_sender.send(ConnectionCommand::SendToPlayer {
             connection_id: connection_id.clone(),
-            // message: "{\"Connection_id\": \"ciao\"}".to_string(),
             message: format!(r#"{{"Connection_id":"{}"}}"#, connection_id.clone()),
         })?;
 
@@ -188,7 +182,6 @@ impl WebsocketServer {
                                     ServerMessage::JoinRoom { room_id, .. },
                                     ServerResponse::PlayerJoined { .. },
                                 ) => {
-                                    // Send response to the joining player
                                     if let Ok(json) = serialize_response(&response) {
                                         cmd_sender.send(ConnectionCommand::SendToPlayer {
                                             connection_id: connection_id.clone(),
@@ -196,7 +189,6 @@ impl WebsocketServer {
                                         })?;
                                     }
 
-                                    // Broadcast the same response to the room
                                     if let Ok(json) = serialize_response(&response) {
                                         cmd_sender.send(ConnectionCommand::SendToRoom {
                                             room_id: room_id.clone(),
@@ -224,11 +216,9 @@ impl WebsocketServer {
                                             .send(ConnectionCommand::SendToAll { message: json })?;
                                     }
                                 }
-                                // Handle other messages normally
+                                // Fallback for handling other messages
                                 _ => {
                                     if let Ok(json) = serialize_response(&response) {
-                                        // For now, just send back to the sender
-                                        // You can enhance this later for specific broadcasting logic
                                         cmd_sender
                                             .send(ConnectionCommand::SendToAll { message: json })?;
                                     }
@@ -251,7 +241,7 @@ impl WebsocketServer {
                     break;
                 }
                 _ => {
-                    // Handle other message types
+                    // Handling other message types (maybe error?)
                 }
             }
         }
