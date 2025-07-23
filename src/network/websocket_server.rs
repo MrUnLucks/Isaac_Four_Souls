@@ -168,11 +168,15 @@ impl WebsocketServer {
                             // Process the message and determine broadcast behavior
                             let response = {
                                 let mut state = lobby_state.lock().await;
-                                handle_message(
+                                let result = handle_message(
                                     game_message,
                                     &mut state.room_manager,
                                     &connection_id,
-                                )
+                                );
+                                match result {
+                                    Ok(server_response) => server_response,
+                                    Err(err) => ServerResponse::Error { message: err },
+                                }
                             };
 
                             let parsed_msg = deserialize_message(&text)?;

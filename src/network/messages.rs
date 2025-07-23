@@ -63,94 +63,72 @@ pub fn handle_message(
     msg: ServerMessage,
     room_manager: &mut RoomManager,
     connection_id: &str,
-) -> ServerResponse {
+) -> Result<ServerResponse, ServerError> {
     match msg {
-        ServerMessage::Ping => ServerResponse::Pong,
+        ServerMessage::Ping => Ok(ServerResponse::Pong),
 
-        // TODO: helper function inside room_manager
-        ServerMessage::Chat { message } => {
-            let room_info = room_manager.connection_to_room_info.get(connection_id);
+        // TODO: helper function inside room_manager, need refactor after improved error handling
+        ServerMessage::Chat { message } => Ok(ServerResponse::Pong),
+        // let room_info = room_manager.connection_to_room_info.get(connection_id)?;
+        // if let Some(room_info) = room_info {
+        //     let room_id = room_info.room_id.clone();
+        //     let room_player_id = room_info.room_player_id.clone();
+        //     if let Some(room) = room_manager.get_room_mut(&room_id) {
+        //         if let Some(player_name) = room.get_player(&room_player_id) {
+        //             return Ok(ServerResponse::ChatMessage {
+        //                 player_name: player_name.clone(),
+        //                 message,
+        //             });
+        //         }
+        //     }
+        // }
 
-            if let Some(room_info) = room_info {
-                let room_id = room_info.room_id.clone();
-                let room_player_id = room_info.room_player_id.clone();
-
-                if let Some(room) = room_manager.get_room_mut(&room_id) {
-                    if let Some(player_name) = room.get_player(&room_player_id) {
-                        return ServerResponse::ChatMessage {
-                            player_name: player_name.clone(),
-                            message,
-                        };
-                    }
-                }
-            }
-
-            ServerResponse::Error {
-                message: ServerError::PlayerNotFound,
-            }
-        }
-
+        // ServerResponse::Error {
+        //     message: ServerError::PlayerNotFound,
+        // }
+        // }
         ServerMessage::CreateRoom {
             room_name,
             first_player_name,
         } => {
-            match room_manager.create_room(room_name, connection_id.to_string(), first_player_name)
-            {
-                Ok((room_id, player_id)) => ServerResponse::RoomCreated { room_id, player_id },
-                Err(_) => ServerResponse::Error {
-                    message: ServerError::RoomNotFound,
-                },
-            }
+            let (room_id, player_id) = room_manager.create_room(
+                room_name,
+                connection_id.to_string(),
+                first_player_name,
+            )?;
+            Ok(ServerResponse::RoomCreated { room_id, player_id })
         }
 
-        ServerMessage::DestroyRoom { room_id } => match room_manager.destroy_room(&room_id) {
-            Ok(()) => ServerResponse::RoomDestroyed,
-            Err(_) => ServerResponse::Error {
-                message: ServerError::RoomNotFound,
-            },
-        },
-
+        ServerMessage::DestroyRoom { room_id } => {
+            room_manager.destroy_room(&room_id)?;
+            Ok(ServerResponse::RoomDestroyed)
+        }
         ServerMessage::JoinRoom {
             connection_id,
             player_name,
             room_id,
-        } => match room_manager.join_room(&room_id, connection_id, player_name.clone()) {
-            Ok(player_id) => ServerResponse::PlayerJoined {
+        } => {
+            let player_id = room_manager.join_room(&room_id, connection_id, player_name.clone())?;
+            Ok(ServerResponse::PlayerJoined {
                 player_id,
                 player_name,
-            },
-            Err(_) => ServerResponse::Error {
-                message: ServerError::RoomNotFound,
-            },
-        },
-
+            })
+        }
         ServerMessage::LeaveRoom { connection_id } => {
-            match room_manager.leave_room(&connection_id) {
-                Ok(player_name) => ServerResponse::PlayerLeft { player_name },
-                Err(err) => {
-                    println!("{:?}", err);
-                    // Actually both error (room and player) are incapsulated here, need better handling in the future
-                    ServerResponse::Error {
-                        message: ServerError::PlayerNotFound,
-                    }
-                }
-            }
+            let player_name = room_manager.leave_room(&connection_id)?;
+            Ok(ServerResponse::PlayerLeft { player_name })
         }
 
-        ServerMessage::PlayerReady { player_id } => match room_manager.ready_player(&player_id) {
-            Err(_) => ServerResponse::Error {
-                message: ServerError::RoomNotFound,
-            },
-            Ok(ready_result) => {
-                if ready_result.game_started {
-                    ServerResponse::GameStarted
-                } else {
-                    ServerResponse::PlayersReady {
-                        players_ready: ready_result.players_ready,
-                    }
+        ServerMessage::PlayerReady { player_id } => {
+            let ready_result = room_manager.ready_player(&player_id)?;
+            Ok(if ready_result.game_started {
+                ServerResponse::GameStarted
+            } else {
+                ServerResponse::PlayersReady {
+                    players_ready: ready_result.players_ready,
                 }
-            }
-        },
+            })
+        }
     }
 }
 
