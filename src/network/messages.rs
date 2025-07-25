@@ -16,6 +16,7 @@ pub enum ServerMessage {
     },
     DestroyRoom {
         room_id: String,
+        connection_id: String,
     },
     JoinRoom {
         connection_id: String,
@@ -69,26 +70,16 @@ pub fn handle_message(
     match msg {
         ServerMessage::Ping => Ok(ServerResponse::Pong),
 
-        // TODO: helper function inside room_manager, need refactor after improved error handling
-        ServerMessage::Chat { message } => Ok(ServerResponse::Pong),
-        // let room_info = room_manager.connection_to_room_info.get(connection_id)?;
-        // if let Some(room_info) = room_info {
-        //     let room_id = room_info.room_id.clone();
-        //     let room_player_id = room_info.room_player_id.clone();
-        //     if let Some(room) = room_manager.get_room_mut(&room_id) {
-        //         if let Some(player_name) = room.get_player(&room_player_id) {
-        //             return Ok(ServerResponse::ChatMessage {
-        //                 player_name: player_name.clone(),
-        //                 message,
-        //             });
-        //         }
-        //     }
-        // }
-
-        // ServerResponse::Error {
-        //     message: ServerError::PlayerNotFound,
-        // }
-        // }
+        // This may need to be moved inside room_manager
+        ServerMessage::Chat { message } => {
+            match room_manager.connection_to_room_info.get(connection_id) {
+                None => Err(ServerError::PlayerNotFound),
+                Some(room_info) => Ok(ServerResponse::ChatMessage {
+                    player_name: room_info.clone().player_name,
+                    message: message,
+                }),
+            }
+        }
         ServerMessage::CreateRoom {
             room_name,
             first_player_name,
@@ -101,8 +92,11 @@ pub fn handle_message(
             Ok(ServerResponse::RoomCreated { room_id, player_id })
         }
 
-        ServerMessage::DestroyRoom { room_id } => {
-            room_manager.destroy_room(&room_id)?;
+        ServerMessage::DestroyRoom {
+            room_id,
+            connection_id,
+        } => {
+            room_manager.destroy_room(&room_id, &connection_id)?;
             Ok(ServerResponse::RoomDestroyed)
         }
         ServerMessage::JoinRoom {

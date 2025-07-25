@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 pub struct PlayerRoomInfo {
     pub room_id: String,
     pub room_player_id: String,
+    pub player_name: String,
 }
 
 pub struct RoomManager {
@@ -45,7 +46,7 @@ impl RoomManager {
         }
 
         let mut room = Room::new(room_name);
-        let new_player_id = room.add_player(first_player_name)?;
+        let new_player_id = room.add_player(first_player_name.clone())?;
         let room_id = room.get_id();
 
         self.connection_to_room_info.insert(
@@ -53,6 +54,7 @@ impl RoomManager {
             PlayerRoomInfo {
                 room_id: room_id.clone(),
                 room_player_id: new_player_id.clone(),
+                player_name: first_player_name.clone(),
             },
         );
         self.rooms.insert(room_id.clone(), room);
@@ -74,12 +76,13 @@ impl RoomManager {
             .rooms
             .get_mut(room_id)
             .ok_or(RoomManagerError::RoomError(RoomError::RoomNotFound))?;
-        let new_player_id = room.add_player(player_name)?;
+        let new_player_id = room.add_player(player_name.clone())?;
         self.connection_to_room_info.insert(
             connection_id,
             PlayerRoomInfo {
                 room_id: room_id.to_string(),
                 room_player_id: new_player_id.clone(),
+                player_name: player_name.clone(),
             },
         );
         Ok(new_player_id)
@@ -90,6 +93,7 @@ impl RoomManager {
         let PlayerRoomInfo {
             room_id,
             room_player_id,
+            player_name: _,
         } = self
             .connection_to_room_info
             .remove(connection_id)
@@ -105,8 +109,6 @@ impl RoomManager {
         if room.player_count() == 0 {
             self.rooms.remove(&room_id);
         }
-        println!("{:?}", self.connection_to_room_info);
-        println!("Rooms: {:?}", self.rooms);
 
         Ok(removed_player_name)
     }
@@ -115,7 +117,15 @@ impl RoomManager {
         self.rooms.get_mut(room_id)
     }
 
-    pub fn destroy_room(&mut self, room_id: &str) -> Result<(), RoomManagerError> {
+    pub fn destroy_room(
+        &mut self,
+        room_id: &str,
+        connection_id: &str,
+    ) -> Result<(), RoomManagerError> {
+        self.connection_to_room_info
+            .remove(connection_id)
+            .ok_or_else(|| RoomManagerError::RoomError(RoomError::PlayerNotInRoom))?;
+
         self.rooms
             .remove(room_id)
             .map(|_| ())
