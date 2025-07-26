@@ -2,6 +2,8 @@ use futures_util::{stream::SplitSink, SinkExt};
 use std::collections::HashMap;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
+
+use crate::{game::room_manager::RoomManager, network::messages::ServerError};
 #[derive(Debug)]
 struct WebSocketConnection {
     sender: SplitSink<WebSocketStream<TcpStream>, Message>,
@@ -65,6 +67,29 @@ impl ConnectionManager {
             .send(Message::Text(message.to_string()))
             .await
             .map_err(|e| format!("Failed to send message: {}", e))?;
+        Ok(())
+    }
+
+    pub async fn send_to_room(
+        &mut self,
+        room_id: &str,
+        message: &str,
+        room_manager: RoomManager,
+    ) -> Result<(), ServerError> {
+        let connection_ids = room_manager
+            .get_connections_id_from_room_id(room_id)
+            .ok_or(ServerError::RoomNotFound)?;
+        println!("connections_ids: {:?}", connection_ids);
+        println!("Self. : {:?}", room_manager.rooms_connections_map);
+        for connection_id in connection_ids {
+            self.connections
+                .get_mut(&connection_id)
+                .ok_or_else(|| ServerError::ConnectionNotFound)?
+                .sender
+                .send(Message::Text(message.to_string()))
+                .await
+                .map_err(|_| ServerError::FailedToSendMessage)?;
+        }
         Ok(())
     }
 }

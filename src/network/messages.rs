@@ -140,6 +140,8 @@ pub fn serialize_response(response: &ServerResponse) -> Result<String, serde_jso
 pub enum ServerError {
     PlayerNotFound,
     RoomNotFound,
+    ConnectionNotFound,
+    FailedToSendMessage,
     RoomManagerError(RoomManagerError),
     UnknownResponse,
 }

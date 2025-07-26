@@ -33,6 +33,7 @@ enum ConnectionCommand {
     SendToRoom {
         room_id: String,
         message: String,
+        room_manager: RoomManager,
     },
     SendToPlayer {
         connection_id: String,
@@ -97,18 +98,15 @@ impl WebsocketServer {
                             .send_to_player(&connection_id, &message)
                             .await;
                     }
-                    ConnectionCommand::SendToRoom { room_id, message } => {
-                        match state.room_manager.get_player_list(&room_id) {
-                            None => println!("No room found"),
-                            Some(player_id_vec) => {
-                                for player_id in player_id_vec {
-                                    state
-                                        .connection_manager
-                                        .send_to_player(&player_id, &message)
-                                        .await;
-                                }
-                            }
-                        };
+                    ConnectionCommand::SendToRoom {
+                        room_id,
+                        message,
+                        room_manager: RoomManager,
+                    } => {
+                        state
+                            .connection_manager
+                            .send_to_room(&room_id, &message, room_manager)
+                            .await;
                     }
                 }
             }
@@ -200,6 +198,7 @@ impl WebsocketServer {
                                         cmd_sender.send(ConnectionCommand::SendToRoom {
                                             room_id: room_id.clone(),
                                             message: json,
+                                            room_manager: state.room_manager,
                                         })?;
                                     }
                                 }
