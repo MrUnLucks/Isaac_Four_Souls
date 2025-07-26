@@ -175,11 +175,19 @@ impl WebsocketServer {
                                     &mut state.room_manager,
                                     &connection_id,
                                 );
+
+                                let current_room_id = state
+                                    .room_manager
+                                    .get_player_room_from_connection_id(&connection_id);
+
                                 match result {
-                                    Ok(server_response) => server_response,
-                                    Err(err) => ServerResponse::Error { message: err },
+                                    Ok(server_response) => (server_response, current_room_id),
+                                    Err(err) => {
+                                        (ServerResponse::Error { message: err }, current_room_id)
+                                    }
                                 }
                             };
+                            let (response, current_room_id) = response;
 
                             let parsed_msg = deserialize_message(&text)?;
 
@@ -204,17 +212,18 @@ impl WebsocketServer {
                                     }
                                 }
 
-                                // For now on SendToRoom we are TRUSTING the frontend input on the room_id
-                                // TODO!: NEED to infer room_id from connection and not making frontend pass it
+                                // TODO!: ERROR HANDLING NEEDED! ON ALL RESULT BASED RESPONSES
                                 (
-                                    ServerMessage::Chat { room_id, .. },
+                                    ServerMessage::Chat { .. },
                                     ServerResponse::ChatMessage { .. },
                                 ) => {
                                     if let Ok(json) = serialize_response(&response) {
-                                        cmd_sender.send(ConnectionCommand::SendToRoom {
-                                            room_id: room_id.to_string(),
-                                            message: json,
-                                        })?;
+                                        if let Some(room_id) = current_room_id {
+                                            cmd_sender.send(ConnectionCommand::SendToRoom {
+                                                room_id,
+                                                message: json,
+                                            })?;
+                                        }
                                     }
                                 }
                                 (
