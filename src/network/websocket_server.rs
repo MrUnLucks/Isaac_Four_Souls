@@ -1,4 +1,4 @@
-use futures_util::{stream::SplitSink, StreamExt};
+use futures_util::{stream::SplitSink, SinkExt, StreamExt};
 use std::{error::Error, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
@@ -33,7 +33,6 @@ enum ConnectionCommand {
     SendToRoom {
         room_id: String,
         message: String,
-        room_manager: RoomManager,
     },
     SendToPlayer {
         connection_id: String,
@@ -98,15 +97,22 @@ impl WebsocketServer {
                             .send_to_player(&connection_id, &message)
                             .await;
                     }
-                    ConnectionCommand::SendToRoom {
-                        room_id,
-                        message,
-                        room_manager: RoomManager,
-                    } => {
-                        state
-                            .connection_manager
-                            .send_to_room(&room_id, &message, room_manager)
-                            .await;
+                    ConnectionCommand::SendToRoom { room_id, message } => {
+                        if let Some(connection_ids) =
+                            state.room_manager.get_connections_id_from_room_id(&room_id)
+                        {
+                            println!("{:?}", connection_ids);
+                            for connection_id in connection_ids {
+                                if let Some(connection) =
+                                    state.connection_manager.connections.get_mut(&connection_id)
+                                {
+                                    let _ = connection
+                                        .sender
+                                        .send(Message::Text(message.clone()))
+                                        .await;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -198,7 +204,6 @@ impl WebsocketServer {
                                         cmd_sender.send(ConnectionCommand::SendToRoom {
                                             room_id: room_id.clone(),
                                             message: json,
-                                            room_manager: state.room_manager,
                                         })?;
                                     }
                                 }
