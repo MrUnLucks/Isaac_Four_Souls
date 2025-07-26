@@ -196,14 +196,6 @@ impl WebsocketServer {
                                     ServerMessage::JoinRoom { room_id, .. },
                                     ServerResponse::PlayerJoined { .. },
                                 ) => {
-                                    println!("Match doppio playerReady{:?}", response);
-                                    if let Ok(json) = serialize_response(&response) {
-                                        cmd_sender.send(ConnectionCommand::SendToPlayer {
-                                            connection_id: connection_id.clone(),
-                                            message: json,
-                                        })?;
-                                    }
-
                                     if let Ok(json) = serialize_response(&response) {
                                         cmd_sender.send(ConnectionCommand::SendToRoom {
                                             room_id: room_id.clone(),
