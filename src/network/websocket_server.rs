@@ -8,7 +8,6 @@ use tokio_tungstenite::{accept_async, tungstenite::Message, WebSocketStream};
 use uuid::Uuid;
 
 use crate::{
-    game::room_manager::RoomManager,
     network::{
         connection_manager::ConnectionManager,
         messages::{
@@ -16,6 +15,7 @@ use crate::{
             ServerResponse,
         },
     },
+    RoomManager,
 };
 
 #[derive(Debug)]

@@ -1,7 +1,8 @@
 use serde::Serialize;
 
-use crate::{game::room::RoomError, Room};
 use std::collections::{HashMap, HashSet};
+
+use crate::{Room, RoomError};
 
 #[derive(Debug, Clone)]
 pub struct PlayerRoomInfo {
