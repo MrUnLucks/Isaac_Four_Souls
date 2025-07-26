@@ -1,4 +1,4 @@
-use futures_util::{stream::SplitSink, SinkExt, StreamExt};
+use futures_util::{stream::SplitSink, StreamExt};
 use std::{error::Error, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
@@ -103,14 +103,10 @@ impl WebsocketServer {
                         {
                             println!("{:?}", connection_ids);
                             for connection_id in connection_ids {
-                                if let Some(connection) =
-                                    state.connection_manager.connections.get_mut(&connection_id)
-                                {
-                                    let _ = connection
-                                        .sender
-                                        .send(Message::Text(message.clone()))
-                                        .await;
-                                }
+                                state
+                                    .connection_manager
+                                    .send_to_player(&connection_id, &message)
+                                    .await;
                             }
                         }
                     }
@@ -208,13 +204,17 @@ impl WebsocketServer {
                                     }
                                 }
 
+                                // For now on SendToRoom we are TRUSTING the frontend input on the room_id
+                                // TODO!: NEED to infer room_id from connection and not making frontend pass it
                                 (
-                                    ServerMessage::Chat { .. },
+                                    ServerMessage::Chat { room_id, .. },
                                     ServerResponse::ChatMessage { .. },
                                 ) => {
                                     if let Ok(json) = serialize_response(&response) {
-                                        cmd_sender
-                                            .send(ConnectionCommand::SendToAll { message: json })?;
+                                        cmd_sender.send(ConnectionCommand::SendToRoom {
+                                            room_id: room_id.to_string(),
+                                            message: json,
+                                        })?;
                                     }
                                 }
                                 (

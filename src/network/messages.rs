@@ -9,6 +9,7 @@ pub enum ServerMessage {
     Ping,
     Chat {
         message: String,
+        room_id: String,
     },
     CreateRoom {
         room_name: String,
@@ -71,7 +72,7 @@ pub fn handle_message(
         ServerMessage::Ping => Ok(ServerResponse::Pong),
 
         // This may need to be moved inside room_manager
-        ServerMessage::Chat { message } => {
+        ServerMessage::Chat { message, room_id } => {
             match room_manager.connection_to_room_info.get(connection_id) {
                 None => Err(ServerError::PlayerNotFound),
                 Some(room_info) => Ok(ServerResponse::ChatMessage {
