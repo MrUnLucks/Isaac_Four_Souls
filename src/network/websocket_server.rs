@@ -8,7 +8,6 @@ use tokio_tungstenite::{accept_async, tungstenite::Message, WebSocketStream};
 use uuid::Uuid;
 
 use crate::{
-    game::room_manager::RoomManager,
     network::{
         connection_manager::ConnectionManager,
         messages::{
@@ -16,6 +15,7 @@ use crate::{
             ServerResponse,
         },
     },
+    RoomManager,
 };
 
 #[derive(Debug)]
@@ -36,6 +36,11 @@ enum ConnectionCommand {
     },
     SendToPlayer {
         connection_id: String,
+        message: String,
+    },
+    SendToRoomExceptPlayer {
+        connection_id: String,
+        room_id: String,
         message: String,
     },
 }
@@ -101,12 +106,29 @@ impl WebsocketServer {
                         if let Some(connection_ids) =
                             state.room_manager.get_connections_id_from_room_id(&room_id)
                         {
-                            println!("{:?}", connection_ids);
                             for connection_id in connection_ids {
                                 state
                                     .connection_manager
                                     .send_to_player(&connection_id, &message)
                                     .await;
+                            }
+                        }
+                    }
+                    ConnectionCommand::SendToRoomExceptPlayer {
+                        connection_id,
+                        room_id,
+                        message,
+                    } => {
+                        if let Some(mut connection_ids) =
+                            state.room_manager.get_connections_id_from_room_id(&room_id)
+                        {
+                            if connection_ids.remove(&connection_id) {
+                                for connection_id in connection_ids {
+                                    state
+                                        .connection_manager
+                                        .send_to_player(&connection_id, &message)
+                                        .await;
+                                }
                             }
                         }
                     }
@@ -193,14 +215,42 @@ impl WebsocketServer {
 
                             match (&parsed_msg, &response) {
                                 (
-                                    ServerMessage::JoinRoom { room_id, .. },
-                                    ServerResponse::PlayerJoined { .. },
+                                    ServerMessage::JoinRoom {
+                                        room_id,
+                                        connection_id,
+                                        ..
+                                    },
+                                    ServerResponse::PlayerJoined {
+                                        player_id,
+                                        player_name,
+                                    },
                                 ) => {
-                                    if let Ok(json) = serialize_response(&response) {
-                                        cmd_sender.send(ConnectionCommand::SendToRoom {
-                                            room_id: room_id.clone(),
-                                            message: json,
+                                    let player_name = player_name.to_string();
+                                    let player_id = player_id.to_string();
+                                    let joiner_response = ServerResponse::SelfJoined {
+                                        player_name: player_name.clone(),
+                                        player_id: player_id.clone(),
+                                    };
+                                    if let Ok(joiner_json) = serialize_response(&joiner_response) {
+                                        cmd_sender.send(ConnectionCommand::SendToPlayer {
+                                            connection_id: connection_id.clone(),
+                                            message: joiner_json,
                                         })?;
+                                    }
+
+                                    let others_response = ServerResponse::PlayerJoined {
+                                        player_name,
+                                        player_id,
+                                    };
+
+                                    if let Ok(others_json) = serialize_response(&others_response) {
+                                        cmd_sender.send(
+                                            ConnectionCommand::SendToRoomExceptPlayer {
+                                                connection_id: connection_id.clone(),
+                                                room_id: room_id.clone(),
+                                                message: others_json,
+                                            },
+                                        )?;
                                     }
                                 }
 
@@ -229,6 +279,33 @@ impl WebsocketServer {
                                             .send(ConnectionCommand::SendToAll { message: json })?;
                                     }
                                 }
+                                (
+                                    ServerMessage::CreateRoom { .. },
+                                    ServerResponse::FirstPlayerRoomCreated { room_id, player_id },
+                                ) => {
+                                    let first_player_response =
+                                        ServerResponse::FirstPlayerRoomCreated {
+                                            room_id: room_id.clone(),
+                                            player_id: player_id.clone(),
+                                        };
+                                    if let Ok(first_player_response) =
+                                        serialize_response(&first_player_response)
+                                    {
+                                        cmd_sender.send(ConnectionCommand::SendToPlayer {
+                                            connection_id: connection_id.clone(),
+                                            message: first_player_response,
+                                        })?;
+                                    }
+                                    let others_response = ServerResponse::RoomCreated {
+                                        room_id: room_id.to_string(),
+                                    };
+                                    if let Ok(others_json) = serialize_response(&others_response) {
+                                        cmd_sender.send(ConnectionCommand::SendToAll {
+                                            message: others_json,
+                                        })?;
+                                    }
+                                }
+
                                 // Fallback for handling other messages
                                 _ => {
                                     if let Ok(json) = serialize_response(&response) {

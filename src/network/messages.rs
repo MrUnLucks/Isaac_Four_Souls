@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::game::room_manager::{RoomManager, RoomManagerError};
+use crate::{RoomManager, RoomManagerError};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ServerMessage {
@@ -43,9 +43,16 @@ pub enum ServerResponse {
     },
     RoomCreated {
         room_id: String,
+    },
+    FirstPlayerRoomCreated {
+        room_id: String,
         player_id: String,
     },
     RoomDestroyed,
+    SelfJoined {
+        player_name: String,
+        player_id: String,
+    },
     PlayerJoined {
         player_name: String,
         player_id: String,
@@ -89,7 +96,7 @@ pub fn handle_message(
                 connection_id.to_string(),
                 first_player_name,
             )?;
-            Ok(ServerResponse::RoomCreated { room_id, player_id })
+            Ok(ServerResponse::FirstPlayerRoomCreated { room_id, player_id })
         }
 
         ServerMessage::DestroyRoom {
@@ -117,6 +124,7 @@ pub fn handle_message(
 
         ServerMessage::PlayerReady { player_id } => {
             let ready_result = room_manager.ready_player(&player_id)?;
+            println!("{:?}", ready_result);
             Ok(if ready_result.game_started {
                 ServerResponse::GameStarted
             } else {
