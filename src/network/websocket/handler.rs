@@ -4,7 +4,7 @@ use tokio::sync::{mpsc, Mutex};
 
 use crate::network::lobby::LobbyState;
 use crate::network::messages::{
-    deserialize_message, handle_message, serialize_response, ServerError, ServerMessage,
+    deserialize_message, handle_message, serialize_response, ClientMessage, ServerError,
     ServerResponse,
 };
 use crate::network::websocket::commands::ConnectionCommand;
@@ -44,7 +44,7 @@ impl MessageHandler {
     }
 
     async fn process_game_message(
-        game_message: ServerMessage,
+        game_message: ClientMessage,
         connection_id: &str,
         lobby_state: &Arc<Mutex<LobbyState>>,
         cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
@@ -83,7 +83,7 @@ impl MessageHandler {
     }
 
     async fn route_response(
-        parsed_msg: &ServerMessage,
+        parsed_msg: &ClientMessage,
         response: &ServerResponse,
         connection_id: &str,
         current_room_id: Option<String>,
@@ -91,7 +91,7 @@ impl MessageHandler {
     ) -> Result<(), Box<dyn Error>> {
         match (parsed_msg, response) {
             (
-                ServerMessage::JoinRoom { room_id, .. },
+                ClientMessage::JoinRoom { room_id, .. },
                 ServerResponse::PlayerJoined {
                     player_id,
                     player_name,
@@ -106,7 +106,7 @@ impl MessageHandler {
                 )
                 .await?;
             }
-            (ServerMessage::Chat { .. }, ServerResponse::ChatMessage { .. }) => {
+            (ClientMessage::Chat { .. }, ServerResponse::ChatMessage { .. }) => {
                 if let Ok(json) = serialize_response(response) {
                     if let Some(room_id) = current_room_id {
                         cmd_sender.send(ConnectionCommand::SendToRoom {
@@ -116,13 +116,13 @@ impl MessageHandler {
                     }
                 }
             }
-            (ServerMessage::PlayerReady { .. }, ServerResponse::GameStarted { .. }) => {
+            (ClientMessage::PlayerReady { .. }, ServerResponse::GameStarted { .. }) => {
                 if let Ok(json) = serialize_response(response) {
                     cmd_sender.send(ConnectionCommand::SendToAll { message: json })?;
                 }
             }
             (
-                ServerMessage::CreateRoom { .. },
+                ClientMessage::CreateRoom { .. },
                 ServerResponse::FirstPlayerRoomCreated { room_id, player_id },
             ) => {
                 Self::handle_create_room_response(room_id, player_id, connection_id, cmd_sender)

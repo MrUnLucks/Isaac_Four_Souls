@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{RoomManager, RoomManagerError};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum ServerMessage {
+pub enum ClientMessage {
     Ping,
     Chat {
         message: String,
@@ -70,15 +70,15 @@ pub enum ServerResponse {
 }
 
 pub fn handle_message(
-    msg: ServerMessage,
+    msg: ClientMessage,
     room_manager: &mut RoomManager,
     connection_id: &str,
 ) -> Result<ServerResponse, ServerError> {
     match msg {
-        ServerMessage::Ping => Ok(ServerResponse::Pong),
+        ClientMessage::Ping => Ok(ServerResponse::Pong),
 
         // This may need to be moved inside room_manager
-        ServerMessage::Chat { message } => {
+        ClientMessage::Chat { message } => {
             match room_manager.connection_to_room_info.get(connection_id) {
                 None => Err(ServerError::PlayerNotFound),
                 Some(room_info) => Ok(ServerResponse::ChatMessage {
@@ -87,7 +87,7 @@ pub fn handle_message(
                 }),
             }
         }
-        ServerMessage::CreateRoom {
+        ClientMessage::CreateRoom {
             room_name,
             first_player_name,
         } => {
@@ -99,14 +99,14 @@ pub fn handle_message(
             Ok(ServerResponse::FirstPlayerRoomCreated { room_id, player_id })
         }
 
-        ServerMessage::DestroyRoom {
+        ClientMessage::DestroyRoom {
             room_id,
             connection_id,
         } => {
             room_manager.destroy_room(&room_id, &connection_id)?;
             Ok(ServerResponse::RoomDestroyed)
         }
-        ServerMessage::JoinRoom {
+        ClientMessage::JoinRoom {
             connection_id,
             player_name,
             room_id,
@@ -117,12 +117,12 @@ pub fn handle_message(
                 player_name,
             })
         }
-        ServerMessage::LeaveRoom { connection_id } => {
+        ClientMessage::LeaveRoom { connection_id } => {
             let player_name = room_manager.leave_room(&connection_id)?;
             Ok(ServerResponse::PlayerLeft { player_name })
         }
 
-        ServerMessage::PlayerReady { player_id } => {
+        ClientMessage::PlayerReady { player_id } => {
             let ready_result = room_manager.ready_player(&player_id)?;
             println!("{:?}", ready_result);
             Ok(if ready_result.game_started {
@@ -136,7 +136,7 @@ pub fn handle_message(
     }
 }
 
-pub fn deserialize_message(json: &str) -> Result<ServerMessage, serde_json::Error> {
+pub fn deserialize_message(json: &str) -> Result<ClientMessage, serde_json::Error> {
     serde_json::from_str(json)
 }
 
