@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{RoomManager, RoomManagerError};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ServerMessage {
     Ping,
     Chat {

@@ -1,4 +1,4 @@
-use isaac_four_souls::websocket_server::WebsocketServer;
+use isaac_four_souls::network::websocket::WebsocketServer;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

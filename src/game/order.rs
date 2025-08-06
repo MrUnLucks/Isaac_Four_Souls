@@ -1,35 +1,49 @@
-use crate::player::manager::{Player, PlayerManager};
+use rand::rng;
 use rand::seq::SliceRandom;
 
-pub struct PlayerOrder {
+pub struct TurnOrder {
     order: Vec<String>,
     active_player_id: String,
+    turn_counter: u32,
 }
 
 pub enum TurnPhases {
-    Waiting,
-    TurnStart,
-    TurnAction,
+    UntapStep,
+    StartStep, // Start of turn abilities
+    LootStep,
+    ActionStep, // Loot play - Attack - Shop
+    EndStep,    // End of turn abilities
     TurnEnd,
-    GameOver,
 }
 
-//TODO: reimplement with room system!
-// impl PlayerOrder {
-//     pub fn new(manager: PlayerManager) -> Self {
-//         let mut rng = rand::rng();
-//         let mut player_vec: Vec<&Player> = manager.list_connected_players();
-//         println!("{:?}", player_vec);
-//         player_vec.shuffle(&mut rng);
-//         println!("{:?}", player_vec);
-//         let order: Vec<String> = player_vec.iter().map(|player| player.id.clone()).collect();
-//         let active_player_id = order[0].clone();
-//         Self {
-//             order,
-//             active_player_id,
-//         }
-//     }
-//     pub fn can_player_act(&self, player_id: String) -> bool {
-//         self.active_player_id == player_id
-//     }
-// }
+impl TurnOrder {
+    pub fn new(player_ids: Vec<String>) -> Self {
+        let mut random_generator = rng();
+        let mut order = player_ids;
+        order.shuffle(&mut random_generator);
+
+        let active_player_id = order[0].clone();
+
+        Self {
+            order,
+            active_player_id,
+            turn_counter: 0,
+        }
+    }
+
+    pub fn is_player_turn(&self, player_id: &str) -> bool {
+        self.active_player_id == player_id
+    }
+
+    pub fn advance_turn(&mut self) {
+        if let Some(current_index) = self
+            .order
+            .iter()
+            .position(|id| id == &self.active_player_id)
+        {
+            let next_index = (current_index + 1) % self.order.len();
+            self.active_player_id = self.order[next_index].clone();
+            self.turn_counter += 1;
+        }
+    }
+}
