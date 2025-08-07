@@ -84,6 +84,30 @@ impl MessageHandler {
         Ok(())
     }
 
+    /// Helper function to serialize response and send error if serialization fails
+    fn serialize_and_handle_error(
+        response: &ServerResponse,
+        connection_id: &str,
+        cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
+    ) -> Result<String, Box<dyn Error>> {
+        match serialize_response(response) {
+            Ok(json) => Ok(json),
+            Err(e) => {
+                eprintln!("❌ Failed to serialize response: {}", e);
+                let error_response = ServerResponse::Error {
+                    message: ServerError::UnknownResponse,
+                };
+                if let Ok(error_json) = serialize_response(&error_response) {
+                    cmd_sender.send(ConnectionCommand::SendToPlayer {
+                        connection_id: connection_id.to_string(),
+                        message: error_json,
+                    })?;
+                }
+                Err(e.into())
+            }
+        }
+    }
+
     fn route_response(
         parsed_msg: &ClientMessage,
         response: &ServerResponse,
@@ -107,7 +131,8 @@ impl MessageHandler {
                     player_id: player_id.clone(),
                 };
 
-                let joiner_json = serialize_response(&joiner_response)?;
+                let joiner_json =
+                    Self::serialize_and_handle_error(&joiner_response, connection_id, cmd_sender)?;
                 cmd_sender.send(ConnectionCommand::SendToPlayer {
                     connection_id: connection_id.to_string(),
                     message: joiner_json,
@@ -118,7 +143,8 @@ impl MessageHandler {
                     player_id,
                 };
 
-                let others_json = serialize_response(&others_response)?;
+                let others_json =
+                    Self::serialize_and_handle_error(&others_response, connection_id, cmd_sender)?;
                 cmd_sender.send(ConnectionCommand::SendToRoomExceptPlayer {
                     connection_id: connection_id.to_string(),
                     room_id: room_id.to_string(),
@@ -126,19 +152,17 @@ impl MessageHandler {
                 })?;
             }
             (ClientMessage::Chat { .. }, ServerResponse::ChatMessage { .. }) => {
-                if let Ok(json) = serialize_response(response) {
-                    if let Some(room_id) = current_room_id {
-                        cmd_sender.send(ConnectionCommand::SendToRoom {
-                            room_id,
-                            message: json,
-                        })?;
-                    }
+                let json = Self::serialize_and_handle_error(response, connection_id, cmd_sender)?;
+                if let Some(room_id) = current_room_id {
+                    cmd_sender.send(ConnectionCommand::SendToRoom {
+                        room_id,
+                        message: json,
+                    })?;
                 }
             }
             (ClientMessage::PlayerReady { .. }, ServerResponse::GameStarted { .. }) => {
-                if let Ok(json) = serialize_response(response) {
-                    cmd_sender.send(ConnectionCommand::SendToAll { message: json })?;
-                }
+                let json = Self::serialize_and_handle_error(response, connection_id, cmd_sender)?;
+                cmd_sender.send(ConnectionCommand::SendToAll { message: json })?;
             }
             (
                 ClientMessage::CreateRoom { .. },
@@ -149,33 +173,36 @@ impl MessageHandler {
                     player_id: player_id.to_string(),
                 };
 
-                let first_player_response = serialize_response(&first_player_response)?;
+                let first_player_json = Self::serialize_and_handle_error(
+                    &first_player_response,
+                    connection_id,
+                    cmd_sender,
+                )?;
                 cmd_sender.send(ConnectionCommand::SendToPlayer {
                     connection_id: connection_id.to_string(),
-                    message: first_player_response,
+                    message: first_player_json,
                 })?;
 
                 let others_response = ServerResponse::RoomCreated {
                     room_id: room_id.to_string(),
                 };
 
-                let others_json = serialize_response(&others_response)?;
+                let others_json =
+                    Self::serialize_and_handle_error(&others_response, connection_id, cmd_sender)?;
                 cmd_sender.send(ConnectionCommand::SendToAll {
                     message: others_json,
                 })?;
             }
             (ClientMessage::DestroyRoom { .. }, ServerResponse::RoomDestroyed) => {
-                if let Ok(json) = serialize_response(response) {
-                    cmd_sender.send(ConnectionCommand::SendToAll { message: json })?;
-                }
+                let json = Self::serialize_and_handle_error(response, connection_id, cmd_sender)?;
+                cmd_sender.send(ConnectionCommand::SendToAll { message: json })?;
             }
             _ => {
-                if let Ok(json) = serialize_response(response) {
-                    cmd_sender.send(ConnectionCommand::SendToPlayer {
-                        connection_id: connection_id.to_string(),
-                        message: json,
-                    })?;
-                }
+                let json = Self::serialize_and_handle_error(response, connection_id, cmd_sender)?;
+                cmd_sender.send(ConnectionCommand::SendToPlayer {
+                    connection_id: connection_id.to_string(),
+                    message: json,
+                })?;
             }
         }
         Ok(())
