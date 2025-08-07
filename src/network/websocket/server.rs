@@ -34,7 +34,12 @@ impl WebsocketServer {
         tokio::spawn(async move {
             while let Some(command) = cmd_receiver.recv().await {
                 let mut state = lobby_state_clone.lock().await;
-                CommandProcessor::process_command(command, &mut state).await;
+                // Maybe better implementation needed
+                let processed_command =
+                    CommandProcessor::process_command(command, &mut state).await;
+                if processed_command.is_err() {
+                    return;
+                }
             }
         });
 

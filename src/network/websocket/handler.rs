@@ -76,13 +76,12 @@ impl MessageHandler {
             connection_id,
             current_room_id,
             cmd_sender,
-        )
-        .await?;
+        )?;
 
         Ok(())
     }
 
-    async fn route_response(
+    fn route_response(
         parsed_msg: &ClientMessage,
         response: &ServerResponse,
         connection_id: &str,
@@ -97,14 +96,31 @@ impl MessageHandler {
                     player_name,
                 },
             ) => {
-                Self::handle_join_room_response(
-                    room_id,
-                    connection_id,
-                    player_id,
+                let player_name = player_name.to_string();
+                let player_id = player_id.to_string();
+
+                let joiner_response = ServerResponse::SelfJoined {
+                    player_name: player_name.clone(),
+                    player_id: player_id.clone(),
+                };
+
+                let joiner_json = serialize_response(&joiner_response)?;
+                cmd_sender.send(ConnectionCommand::SendToPlayer {
+                    connection_id: connection_id.to_string(),
+                    message: joiner_json,
+                })?;
+
+                let others_response = ServerResponse::PlayerJoined {
                     player_name,
-                    cmd_sender,
-                )
-                .await?;
+                    player_id,
+                };
+
+                let others_json = serialize_response(&others_response)?;
+                cmd_sender.send(ConnectionCommand::SendToRoomExceptPlayer {
+                    connection_id: connection_id.to_string(),
+                    room_id: room_id.to_string(),
+                    message: others_json,
+                })?;
             }
             (ClientMessage::Chat { .. }, ServerResponse::ChatMessage { .. }) => {
                 if let Ok(json) = serialize_response(response) {
@@ -125,81 +141,31 @@ impl MessageHandler {
                 ClientMessage::CreateRoom { .. },
                 ServerResponse::FirstPlayerRoomCreated { room_id, player_id },
             ) => {
-                Self::handle_create_room_response(room_id, player_id, connection_id, cmd_sender)
-                    .await?;
+                let first_player_response = ServerResponse::FirstPlayerRoomCreated {
+                    room_id: room_id.to_string(),
+                    player_id: player_id.to_string(),
+                };
+
+                let first_player_response = serialize_response(&first_player_response)?;
+                cmd_sender.send(ConnectionCommand::SendToPlayer {
+                    connection_id: connection_id.to_string(),
+                    message: first_player_response,
+                })?;
+
+                let others_response = ServerResponse::RoomCreated {
+                    room_id: room_id.to_string(),
+                };
+
+                let others_json = serialize_response(&others_response)?;
+                cmd_sender.send(ConnectionCommand::SendToAll {
+                    message: others_json,
+                })?;
             }
             _ => {
                 if let Ok(json) = serialize_response(response) {
                     cmd_sender.send(ConnectionCommand::SendToAll { message: json })?;
                 }
             }
-        }
-        Ok(())
-    }
-
-    async fn handle_join_room_response(
-        room_id: &str,
-        connection_id: &str,
-        player_id: &str,
-        player_name: &str,
-        cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-    ) -> Result<(), Box<dyn Error>> {
-        let player_name = player_name.to_string();
-        let player_id = player_id.to_string();
-
-        let joiner_response = ServerResponse::SelfJoined {
-            player_name: player_name.clone(),
-            player_id: player_id.clone(),
-        };
-
-        if let Ok(joiner_json) = serialize_response(&joiner_response) {
-            cmd_sender.send(ConnectionCommand::SendToPlayer {
-                connection_id: connection_id.to_string(),
-                message: joiner_json,
-            })?;
-        }
-
-        let others_response = ServerResponse::PlayerJoined {
-            player_name,
-            player_id,
-        };
-
-        if let Ok(others_json) = serialize_response(&others_response) {
-            cmd_sender.send(ConnectionCommand::SendToRoomExceptPlayer {
-                connection_id: connection_id.to_string(),
-                room_id: room_id.to_string(),
-                message: others_json,
-            })?;
-        }
-        Ok(())
-    }
-
-    async fn handle_create_room_response(
-        room_id: &str,
-        player_id: &str,
-        connection_id: &str,
-        cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-    ) -> Result<(), Box<dyn Error>> {
-        let first_player_response = ServerResponse::FirstPlayerRoomCreated {
-            room_id: room_id.to_string(),
-            player_id: player_id.to_string(),
-        };
-
-        if let Ok(first_player_response) = serialize_response(&first_player_response) {
-            cmd_sender.send(ConnectionCommand::SendToPlayer {
-                connection_id: connection_id.to_string(),
-                message: first_player_response,
-            })?;
-        }
-
-        let others_response = ServerResponse::RoomCreated {
-            room_id: room_id.to_string(),
-        };
-
-        if let Ok(others_json) = serialize_response(&others_response) {
-            cmd_sender.send(ConnectionCommand::SendToAll {
-                message: others_json,
-            })?;
         }
         Ok(())
     }

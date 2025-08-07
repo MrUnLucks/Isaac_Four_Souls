@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use futures_util::stream::SplitSink;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{tungstenite::Message, WebSocketStream};
@@ -35,7 +37,7 @@ impl CommandProcessor {
     pub async fn process_command(
         command: ConnectionCommand,
         state: &mut crate::network::lobby::LobbyState,
-    ) {
+    ) -> Result<(), Box<dyn Error>> {
         match command {
             ConnectionCommand::AddConnection { id, sender } => {
                 state.connection_manager.add_connection(id, sender);
@@ -53,7 +55,7 @@ impl CommandProcessor {
                 state
                     .connection_manager
                     .send_to_player(&connection_id, &message)
-                    .await;
+                    .await?;
             }
             ConnectionCommand::SendToRoom { room_id, message } => {
                 if let Some(connection_ids) =
@@ -63,7 +65,7 @@ impl CommandProcessor {
                         state
                             .connection_manager
                             .send_to_player(&connection_id, &message)
-                            .await;
+                            .await?;
                     }
                 }
             }
@@ -80,11 +82,12 @@ impl CommandProcessor {
                             state
                                 .connection_manager
                                 .send_to_player(&connection_id, &message)
-                                .await;
+                                .await?;
                         }
                     }
                 }
             }
         }
+        Ok(())
     }
 }
