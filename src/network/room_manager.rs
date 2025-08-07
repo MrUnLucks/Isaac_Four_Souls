@@ -176,6 +176,7 @@ impl RoomManager {
         })
     }
 
+    // These can be transformed to Results to better align with bubbling errors
     pub fn get_player_room_from_player_id(&self, player_id: &str) -> Option<String> {
         self.connection_to_room_info
             .values()

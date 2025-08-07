@@ -36,7 +36,10 @@ impl MessageHandler {
                     message: ServerError::UnknownResponse,
                 };
                 if let Ok(json) = serialize_response(&error_response) {
-                    cmd_sender.send(ConnectionCommand::SendToAll { message: json })?;
+                    cmd_sender.send(ConnectionCommand::SendToPlayer {
+                        connection_id: connection_id.to_string(),
+                        message: json,
+                    })?;
                 }
             }
         }
@@ -161,9 +164,17 @@ impl MessageHandler {
                     message: others_json,
                 })?;
             }
-            _ => {
+            (ClientMessage::DestroyRoom { .. }, ServerResponse::RoomDestroyed) => {
                 if let Ok(json) = serialize_response(response) {
                     cmd_sender.send(ConnectionCommand::SendToAll { message: json })?;
+                }
+            }
+            _ => {
+                if let Ok(json) = serialize_response(response) {
+                    cmd_sender.send(ConnectionCommand::SendToPlayer {
+                        connection_id: connection_id.to_string(),
+                        message: json,
+                    })?;
                 }
             }
         }
