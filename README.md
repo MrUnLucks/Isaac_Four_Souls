@@ -164,53 +164,6 @@ Each player starts with:
 - **Min Players**: 2 to start a game
 - **Room States**: Lobby → Starting → InGame → Finished
 
-## 🧪 Testing
-
-Run the test suite:
-
-```bash
-# Run all tests
-cargo test
-
-# Run specific test modules
-cargo test room_tests
-cargo test room_manager_tests
-cargo test messages_tests
-
-# Run with output
-cargo test -- --nocapture
-```
-
-### Test Coverage
-
-- ✅ Room creation and management
-- ✅ Player joining/leaving
-- ✅ Ready system and game start
-- ✅ Message serialization/deserialization
-- ✅ Error handling
-- ✅ Connection management
-
-## 🛠️ Development
-
-### Project Structure
-
-```
-src/
-├── game/
-│   ├── mod.rs              # Game module exports
-│   ├── room.rs             # Individual room management
-│   ├── room_manager.rs     # Multi-room coordination
-│   ├── resources.rs        # Player resource tracking
-│   └── order.rs            # Turn order system (TODO)
-├── network/
-│   ├── mod.rs              # Network module exports
-│   ├── websocket_server.rs # Main WebSocket server
-│   ├── connection_manager.rs # Connection handling
-│   └── messages.rs         # Message types and handling
-├── lib.rs                  # Library exports
-└── main.rs                 # Server entry point
-```
-
 ### Dependencies
 
 - `tokio` - Async runtime
@@ -219,8 +172,6 @@ src/
 - `uuid` - Unique ID generation
 - `futures-util` - Async utilities
 - `rand` - Random number generation
-
-## 🔄 Current Status
 
 ### ✅ Implemented Features
 
