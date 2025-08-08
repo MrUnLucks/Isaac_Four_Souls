@@ -43,8 +43,6 @@ impl ConnectionHandler {
         while let Some(msg) = ws_receiver.next().await {
             match msg? {
                 Message::Text(text) => {
-                    println!("📨 Connection id: {} received: {}", connection_id, text);
-
                     if let Err(e) = MessageHandler::handle_text_message(
                         text,
                         &connection_id,

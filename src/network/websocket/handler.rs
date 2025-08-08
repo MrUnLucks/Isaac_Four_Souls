@@ -20,15 +20,12 @@ impl MessageHandler {
     ) -> Result<(), Box<dyn Error>> {
         match deserialize_message(&text) {
             Ok(game_message) => {
-                println!("✅ Parsed message text: {:?}", game_message);
-                Self::process_game_message(
-                    game_message,
-                    connection_id,
-                    lobby_state,
-                    cmd_sender,
-                    &text,
-                )
-                .await?;
+                println!(
+                    "✅ Parsed message text: {:?} from {}",
+                    game_message, connection_id
+                );
+                Self::process_game_message(game_message, connection_id, lobby_state, cmd_sender)
+                    .await?;
             }
             Err(e) => {
                 eprintln!("❌ Failed to parse message: {}", e);
@@ -51,7 +48,6 @@ impl MessageHandler {
         connection_id: &str,
         lobby_state: &Arc<Mutex<LobbyState>>,
         cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-        original_text: &str,
     ) -> Result<(), Box<dyn Error>> {
         // Process the message and determine broadcast behavior
         let response = {
@@ -70,11 +66,9 @@ impl MessageHandler {
         };
         let (response, current_room_id) = response;
 
-        let parsed_msg = deserialize_message(original_text)?;
-
         // Route the response based on message type
         Self::route_response(
-            &parsed_msg,
+            &game_message,
             &response,
             connection_id,
             current_room_id,
