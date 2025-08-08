@@ -65,9 +65,10 @@ pub enum ServerResponse {
     },
     GameStarted {
         room_id: String,
+        turn_order: Vec<String>,
     },
     TurnOrder {
-        order: Vec<String>,
+        turn_order: Vec<String>,
     },
     TurnChange {
         active_player_id: String,
@@ -139,6 +140,7 @@ pub fn handle_message(
             Ok(if ready_result.game_started {
                 ServerResponse::GameStarted {
                     room_id: room_id.to_string(),
+                    turn_order: ready_result.turn_order.unwrap(),
                 }
             } else {
                 ServerResponse::PlayersReady {

@@ -70,11 +70,16 @@ impl Room {
         self.players_ready.len() == self.player_count() && self.state == RoomState::Lobby
     }
 
-    pub fn start_game(&mut self) -> Result<(), RoomError> {
+    pub fn start_game(&mut self) -> Result<TurnOrder, RoomError> {
         if self.can_start_game() {
             self.state = RoomState::InGame;
             self.players_ready = HashSet::new();
-            Ok(())
+            self.create_turn_order()?;
+            let turn_order = self
+                .turn_order
+                .clone()
+                .expect("Turn order should exist after creation");
+            Ok(turn_order)
         } else {
             Err(RoomError::PlayersNotReady)
         }

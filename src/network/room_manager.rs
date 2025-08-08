@@ -21,6 +21,7 @@ pub struct RoomManager {
 pub struct ReadyPlayerResult {
     pub players_ready: HashSet<String>,
     pub game_started: bool,
+    pub turn_order: Option<Vec<String>>,
 }
 
 impl RoomManager {
@@ -163,16 +164,18 @@ impl RoomManager {
 
         let players_ready = room.add_player_ready(player_id)?;
 
-        let game_started = if room.can_start_game() {
-            room.start_game()?;
-            true
+        let (game_started, turn_order) = if room.can_start_game() {
+            let turn_order = room.start_game()?;
+            let order = turn_order.order;
+            (true, Some(order))
         } else {
-            false
+            (false, None)
         };
 
         Ok(ReadyPlayerResult {
             players_ready,
             game_started,
+            turn_order,
         })
     }
 
@@ -203,6 +206,7 @@ impl RoomManager {
 pub enum RoomManagerError {
     RoomNameInvalid,
     PlayerInDifferentRoom,
+    TurnOrderNotDefined,
     RoomError(RoomError),
 }
 impl From<RoomError> for RoomManagerError {
