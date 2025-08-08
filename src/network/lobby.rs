@@ -1,4 +1,4 @@
-use crate::{network::connection_manager::ConnectionManager, RoomManager};
+use crate::{network::websocket::connection_manager::ConnectionManager, RoomManager};
 
 pub struct LobbyState {
     pub room_manager: RoomManager,

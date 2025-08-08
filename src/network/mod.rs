@@ -1,4 +1,3 @@
-pub mod connection_manager;
 pub mod lobby;
 pub mod messages;
 pub mod room;
