@@ -178,6 +178,15 @@ impl MessageHandler {
                     message: room_json,
                 })?;
             }
+            (ClientMessage::PlayerReady { .. }, ServerResponse::PlayersReady { players_ready }) => {
+                let json = Self::serialize_and_handle_error(response, connection_id, cmd_sender)?;
+                if let Some(room_id) = current_room_id {
+                    cmd_sender.send(ConnectionCommand::SendToRoom {
+                        room_id,
+                        message: json,
+                    })?;
+                }
+            }
             (
                 ClientMessage::CreateRoom { .. },
                 ServerResponse::FirstPlayerRoomCreated { room_id, player_id },
