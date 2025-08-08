@@ -1,6 +1,7 @@
 use rand::rng;
 use rand::seq::SliceRandom;
 
+#[derive(Debug, Clone)]
 pub struct TurnOrder {
     order: Vec<String>,
     active_player_id: String,
@@ -17,9 +18,9 @@ pub enum TurnPhases {
 }
 
 impl TurnOrder {
-    pub fn new(player_ids: Vec<String>) -> Self {
+    pub fn new(player_ids: &Vec<String>) -> Self {
         let mut random_generator = rng();
-        let mut order = player_ids;
+        let mut order = player_ids.clone();
         order.shuffle(&mut random_generator);
 
         let active_player_id = order[0].clone();

@@ -137,7 +137,9 @@ pub fn handle_message(
                 .get_player_room_from_player_id(&player_id)
                 .ok_or(RoomManagerError::RoomError(RoomError::RoomNotFound))?;
             Ok(if ready_result.game_started {
-                ServerResponse::GameStarted { room_id }
+                ServerResponse::GameStarted {
+                    room_id: room_id.to_string(),
+                }
             } else {
                 ServerResponse::PlayersReady {
                     players_ready: ready_result.players_ready,

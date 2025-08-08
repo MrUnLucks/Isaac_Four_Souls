@@ -1,3 +1,4 @@
+use crate::game::order::TurnOrder;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -12,6 +13,7 @@ pub struct Room {
     max_players: usize,
     min_players: usize,
     players_ready: HashSet<String>,
+    turn_order: Option<TurnOrder>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -33,6 +35,7 @@ impl Room {
             state: RoomState::Lobby,
             max_players: Self::DEFAULT_MAX_PLAYERS,
             min_players: Self::DEFAULT_MIN_PLAYERS,
+            turn_order: None,
         }
     }
 
@@ -92,6 +95,13 @@ impl Room {
         self.players.len()
     }
 
+    pub fn create_turn_order(&mut self) -> Result<(), RoomError> {
+        // Result may be useless
+        let turn_order = TurnOrder::new(&self.get_players_id());
+        self.turn_order = Some(turn_order);
+        Ok(())
+    }
+
     pub fn get_room_info(&self) -> Self {
         Self {
             id: self.id.clone(),
@@ -101,6 +111,7 @@ impl Room {
             max_players: self.max_players,
             state: self.state.clone(),
             players_ready: self.players_ready.clone(),
+            turn_order: self.turn_order.clone(),
         }
     }
     pub fn get_id(&self) -> String {

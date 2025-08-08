@@ -2,6 +2,7 @@ use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 
+use crate::game::order::TurnOrder;
 use crate::network::lobby::LobbyState;
 use crate::network::messages::{
     deserialize_message, handle_message, serialize_response, ClientMessage, ServerError,
@@ -160,9 +161,20 @@ impl MessageHandler {
                     })?;
                 }
             }
-            (ClientMessage::PlayerReady { .. }, ServerResponse::GameStarted { .. }) => {
-                let json = Self::serialize_and_handle_error(response, connection_id, cmd_sender)?;
-                cmd_sender.send(ConnectionCommand::SendToAll { message: json })?;
+            (ClientMessage::PlayerReady { .. }, ServerResponse::GameStarted { room_id }) => {
+                let broadcast_json =
+                    Self::serialize_and_handle_error(response, connection_id, cmd_sender)?;
+                cmd_sender.send(ConnectionCommand::SendToAll {
+                    message: broadcast_json,
+                })?;
+
+                let room_response = ServerResponse::TurnOrder { order: () };
+                let room_json =
+                    Self::serialize_and_handle_error(&room_response, connection_id, cmd_sender)?;
+                cmd_sender.send(ConnectionCommand::SendToRoom {
+                    room_id: room_id.to_string(),
+                    message: room_json,
+                })?;
             }
             (
                 ClientMessage::CreateRoom { .. },
