@@ -3,9 +3,9 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 
 use crate::network::lobby::LobbyState;
+use crate::network::message_handler::handle_message;
 use crate::network::messages::{
-    deserialize_message, handle_message, serialize_response, ClientMessage, ServerError,
-    ServerResponse,
+    deserialize_message, serialize_response, ClientMessage, ServerError, ServerResponse,
 };
 use crate::network::websocket::commands::ConnectionCommand;
 
@@ -178,7 +178,7 @@ impl MessageHandler {
                     message: room_json,
                 })?;
             }
-            (ClientMessage::PlayerReady { .. }, ServerResponse::PlayersReady { players_ready }) => {
+            (ClientMessage::PlayerReady { .. }, ServerResponse::PlayersReady { .. }) => {
                 let json = Self::serialize_and_handle_error(response, connection_id, cmd_sender)?;
                 if let Some(room_id) = current_room_id {
                     cmd_sender.send(ConnectionCommand::SendToRoom {

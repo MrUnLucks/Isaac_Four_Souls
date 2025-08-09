@@ -154,8 +154,7 @@ impl RoomManager {
     }
 
     pub fn ready_player(&mut self, player_id: &str) -> Result<ReadyPlayerResult, RoomManagerError> {
-        let room_id = Self::get_player_room_from_player_id(self, player_id)
-            .ok_or_else(|| RoomManagerError::RoomError(RoomError::PlayerNotInRoom))?;
+        let room_id = Self::get_player_room_from_player_id(self, player_id)?;
 
         let room = self
             .rooms
@@ -179,12 +178,39 @@ impl RoomManager {
         })
     }
 
-    // These can be transformed to Results to better align with bubbling errors
-    pub fn get_player_room_from_player_id(&self, player_id: &str) -> Option<String> {
+    // Temporary handling inside room, need to be moved inside RoomActor
+    pub fn pass_turn(&mut self, connection_id: &str) -> Result<String, RoomManagerError> {
+        let player_id = self.get_player_id_from_connection_id(connection_id)?;
+        let room_id = self
+            .get_player_room_from_connection_id(connection_id)
+            .ok_or_else(|| RoomManagerError::RoomError(RoomError::PlayerNotInRoom))?;
+        let room = self
+            .rooms
+            .get_mut(&room_id)
+            .ok_or_else(|| RoomManagerError::RoomError(RoomError::RoomNotFound))?;
+        let has_passed = room.pass_turn(&player_id)?;
+        Ok(has_passed)
+    }
+
+    pub fn get_player_id_from_connection_id(
+        &self,
+        connection_id: &str,
+    ) -> Result<String, RoomManagerError> {
+        self.connection_to_room_info
+            .get(connection_id)
+            .ok_or_else(|| RoomManagerError::RoomError(RoomError::PlayerNotInRoom))
+            .map(|player| player.room_player_id.clone())
+    }
+
+    pub fn get_player_room_from_player_id(
+        &self,
+        player_id: &str,
+    ) -> Result<String, RoomManagerError> {
         self.connection_to_room_info
             .values()
             .find(|info| info.room_player_id == player_id)
             .map(|info| info.room_id.clone())
+            .ok_or_else(|| RoomManagerError::RoomError(RoomError::PlayerNotInRoom))
     }
 
     pub fn get_player_room_from_connection_id(&self, connection_id: &str) -> Option<String> {

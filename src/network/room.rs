@@ -107,6 +107,19 @@ impl Room {
         Ok(())
     }
 
+    pub fn pass_turn(&mut self, player_id: &str) -> Result<String, RoomError> {
+        let turn_order = self
+            .turn_order
+            .as_mut()
+            .ok_or_else(|| RoomError::TurnOrderNotDefined)?;
+        if turn_order.is_player_turn(player_id) {
+            let next_player_id = turn_order.advance_turn();
+            Ok(next_player_id)
+        } else {
+            Err(RoomError::NotPlayerTurn)
+        }
+    }
+
     pub fn get_room_info(&self) -> Self {
         Self {
             id: self.id.clone(),
@@ -141,6 +154,8 @@ pub enum RoomError {
     PlayersNotReady,
     PlayerAlreadyInRoom,
     RoomNotFound,
+    TurnOrderNotDefined,
+    NotPlayerTurn,
 }
 impl fmt::Display for RoomError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -151,6 +166,8 @@ impl fmt::Display for RoomError {
             RoomError::PlayersNotReady => write!(f, "Players are not ready"),
             RoomError::PlayerAlreadyInRoom => write!(f, "Player already in room"),
             RoomError::RoomNotFound => write!(f, "Room not found"),
+            RoomError::TurnOrderNotDefined => write!(f, "Turn Order not defined"),
+            RoomError::NotPlayerTurn => write!(f, "Not the player's turn"),
         }
     }
 }

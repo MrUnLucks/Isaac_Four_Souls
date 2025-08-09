@@ -36,7 +36,7 @@ impl TurnOrder {
         self.active_player_id == player_id
     }
 
-    pub fn advance_turn(&mut self) {
+    pub fn advance_turn(&mut self) -> String {
         if let Some(current_index) = self
             .order
             .iter()
@@ -46,5 +46,6 @@ impl TurnOrder {
             self.active_player_id = self.order[next_index].clone();
             self.turn_counter += 1;
         }
+        self.active_player_id.clone()
     }
 }
