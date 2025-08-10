@@ -149,8 +149,8 @@ impl RoomManager {
 
         self.rooms
             .remove(room_id)
-            .map(|_| ())
-            .ok_or_else(|| RoomManagerError::RoomError(RoomError::RoomNotFound))
+            .ok_or_else(|| RoomManagerError::RoomError(RoomError::RoomNotFound))?;
+        Ok(())
     }
 
     pub fn ready_player(&mut self, player_id: &str) -> Result<ReadyPlayerResult, RoomManagerError> {
