@@ -2,6 +2,7 @@ use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 
+use crate::game::game_loop::{GameEvent, GameLoop};
 use crate::network::lobby::LobbyState;
 use crate::network::message_handler::handle_message;
 use crate::network::messages::{
@@ -49,24 +50,65 @@ impl MessageHandler {
         lobby_state: &Arc<Mutex<LobbyState>>,
         cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
     ) -> Result<(), Box<dyn Error>> {
-        // Process the message and determine broadcast behavior
-        let response = {
+        let (response, current_room_id, should_start_game_loop) = {
             let mut state = lobby_state.lock().await;
             let result =
                 handle_message(game_message.clone(), &mut state.room_manager, connection_id);
-
             let current_room_id = state
                 .room_manager
                 .get_player_room_from_connection_id(connection_id);
 
+            let should_start_game_loop = matches!(
+                (&game_message, &result),
+                (
+                    ClientMessage::PlayerReady,
+                    Ok(ServerResponse::GameStarted { .. })
+                )
+            );
+
             match result {
-                Ok(server_response) => (server_response, current_room_id),
-                Err(err) => (ServerResponse::Error { message: err }, current_room_id),
+                Ok(server_response) => (server_response, current_room_id, should_start_game_loop),
+                Err(err) => (
+                    ServerResponse::Error { message: err },
+                    current_room_id,
+                    false,
+                ),
             }
         };
-        let (response, current_room_id) = response;
 
-        // Route the response based on message type
+        if should_start_game_loop {
+            if let ServerResponse::GameStarted {
+                room_id,
+                turn_order,
+            } = &response
+            {
+                let mut state = lobby_state.lock().await;
+                let (sender, receiver) = mpsc::channel(32);
+                state.game_loops.insert(room_id.clone(), sender);
+
+                let mut game_loop = GameLoop::new(turn_order.clone());
+                tokio::spawn(async move {
+                    let result = game_loop.run(receiver).await;
+                    println!("{:?}", result);
+                });
+            }
+        }
+
+        if matches!(game_message, ClientMessage::TurnPass) {
+            if let ServerResponse::TurnChange { .. } = &response {
+                let state = lobby_state.lock().await;
+                if let Some(room_id) = &current_room_id {
+                    if let Some(sender) = state.game_loops.get(room_id) {
+                        let player_id = state
+                            .room_manager
+                            .get_player_id_from_connection_id(connection_id)
+                            .unwrap_or_default();
+                        let _ = sender.try_send(GameEvent::TurnPass { player_id });
+                    }
+                }
+            }
+        }
+
         Self::route_response(
             &game_message,
             &response,
@@ -74,11 +116,9 @@ impl MessageHandler {
             current_room_id,
             cmd_sender,
         )?;
-
         Ok(())
     }
 
-    /// Helper function to serialize response and send error if serialization fails
     fn serialize_and_handle_error(
         response: &ServerResponse,
         connection_id: &str,

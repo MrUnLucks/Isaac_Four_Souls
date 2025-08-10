@@ -5,7 +5,7 @@ use rand::seq::SliceRandom;
 pub struct TurnOrder {
     pub order: Vec<String>,
     active_player_id: String,
-    turn_counter: u32,
+    pub turn_counter: u32,
 }
 
 pub enum TurnPhases {
