@@ -2,8 +2,6 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::AppError;
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ClientMessage {
     Ping,
@@ -71,7 +69,8 @@ pub enum ServerResponse {
         next_player_id: String,
     },
     Error {
-        message: AppError,
+        message: String,
+        code: u16,
     },
 }
 

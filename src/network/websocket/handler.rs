@@ -8,7 +8,6 @@ use crate::network::messages::{
     deserialize_message, serialize_response, ClientMessage, ServerResponse,
 };
 use crate::network::websocket::commands::ConnectionCommand;
-use crate::AppError;
 
 pub struct MessageHandler;
 
@@ -31,9 +30,8 @@ impl MessageHandler {
             Err(e) => {
                 eprintln!("❌ Failed to parse message: {}", e);
                 let error_response = ServerResponse::Error {
-                    message: AppError::UnknownMessage {
-                        message: "Unknown message sent to server".to_string(),
-                    },
+                    message: e.to_string(),
+                    code: 400,
                 };
                 if let Ok(json) = serialize_response(&error_response) {
                     cmd_sender.send(ConnectionCommand::SendToPlayer {
@@ -62,7 +60,13 @@ impl MessageHandler {
 
             match result {
                 Ok(server_response) => (server_response, current_room_id),
-                Err(err) => (ServerResponse::Error { message: err }, current_room_id),
+                Err(err) => (
+                    ServerResponse::Error {
+                        message: err.to_string(),
+                        code: err.status_code(),
+                    },
+                    current_room_id,
+                ),
             }
         };
 
@@ -87,9 +91,8 @@ impl MessageHandler {
             Err(e) => {
                 eprintln!("❌ Failed to serialize response: {}", e);
                 let error_response = ServerResponse::Error {
-                    message: AppError::UnknownMessage {
-                        message: "Unknown message sent to server".to_string(),
-                    },
+                    message: e.to_string(),
+                    code: 400,
                 };
                 if let Ok(error_json) = serialize_response(&error_response) {
                     cmd_sender.send(ConnectionCommand::SendToPlayer {
