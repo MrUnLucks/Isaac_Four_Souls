@@ -12,7 +12,7 @@ pub struct PlayerRoomInfo {
 }
 
 pub struct RoomManager {
-    rooms: HashMap<String, RoomActor>,
+    pub rooms: HashMap<String, RoomActor>,
     pub connection_to_room_info: HashMap<String, PlayerRoomInfo>, // connection_id -> room info
     pub rooms_connections_map: HashMap<String, HashSet<String>>, // room_id -> HashSet<connection_id>
 }
@@ -81,7 +81,7 @@ impl RoomManager {
         let room = self
             .rooms
             .get_mut(room_id)
-            .ok_or(RoomManagerError::RoomError(RoomError::RoomNotFound))?;
+            .ok_or(RoomManagerError::RoomNotFound)?;
         let new_player_id = room.add_player(player_name.clone())?;
         self.connection_to_room_info.insert(
             connection_id.clone(),
@@ -112,12 +112,12 @@ impl RoomManager {
         let room = self
             .rooms
             .get_mut(&room_id)
-            .ok_or_else(|| RoomManagerError::RoomError(RoomError::RoomNotFound))?;
+            .ok_or_else(|| RoomManagerError::RoomNotFound)?;
 
         let connection_set = self
             .rooms_connections_map
             .get_mut(&room_id.to_string())
-            .ok_or_else(|| RoomManagerError::RoomError(RoomError::RoomNotFound))?;
+            .ok_or_else(|| RoomManagerError::RoomNotFound)?;
         connection_set.remove(connection_id); // Safe to call
         let removed_player_name = room.remove_player(&room_player_id)?;
 
@@ -144,12 +144,12 @@ impl RoomManager {
         let connection_set = self
             .rooms_connections_map
             .get_mut(&room_id.to_string())
-            .ok_or_else(|| RoomManagerError::RoomError(RoomError::RoomNotFound))?;
+            .ok_or_else(|| RoomManagerError::RoomNotFound)?;
         connection_set.remove(connection_id); // Safe to call
 
         self.rooms
             .remove(room_id)
-            .ok_or_else(|| RoomManagerError::RoomError(RoomError::RoomNotFound))?;
+            .ok_or_else(|| RoomManagerError::RoomNotFound)?;
         Ok(())
     }
 
@@ -159,7 +159,7 @@ impl RoomManager {
         let room = self
             .rooms
             .get_mut(&room_id)
-            .ok_or(RoomManagerError::RoomError(RoomError::RoomNotFound))?;
+            .ok_or(RoomManagerError::RoomNotFound)?;
 
         let players_ready = room.add_player_ready(player_id)?;
 
@@ -186,7 +186,7 @@ impl RoomManager {
         let room = self
             .rooms
             .get_mut(&room_id)
-            .ok_or_else(|| RoomManagerError::RoomError(RoomError::RoomNotFound))?;
+            .ok_or_else(|| RoomManagerError::RoomNotFound)?;
         let next_player_id = room.pass_turn(&player_id)?;
         Ok(next_player_id)
     }
@@ -232,6 +232,7 @@ pub enum RoomManagerError {
     RoomNameInvalid,
     PlayerInDifferentRoom,
     TurnOrderNotDefined,
+    RoomNotFound,
     RoomError(RoomError),
 }
 impl From<RoomError> for RoomManagerError {
