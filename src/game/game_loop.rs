@@ -36,7 +36,7 @@ impl GameLoop {
                         let next_player = turn_order.advance_turn();
 
                         if turn_order.get_turn_counter() >= self.max_turns {
-                            () // Need handling
+                            println!("Max turn Reached!");
                         }
 
                         println!("Turn passed to: {}", next_player);

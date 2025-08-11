@@ -1,8 +1,14 @@
 use serde::Serialize;
-
 use std::collections::{HashMap, HashSet};
+use tokio::sync::mpsc;
 
-use crate::{RoomActor, RoomError};
+use crate::{
+    game::{
+        game_loop::{GameEvent, GameLoop},
+        turn_order::TurnOrder,
+    },
+    RoomActor, RoomError,
+};
 
 #[derive(Debug, Clone)]
 pub struct PlayerRoomInfo {
@@ -15,6 +21,7 @@ pub struct RoomManager {
     pub rooms: HashMap<String, RoomActor>,
     pub connection_to_room_info: HashMap<String, PlayerRoomInfo>, // connection_id -> room info
     pub rooms_connections_map: HashMap<String, HashSet<String>>, // room_id -> HashSet<connection_id>
+    pub game_loops: HashMap<String, mpsc::Sender<GameEvent>>,    // room_id -> game event sender
 }
 
 #[derive(Debug)]
@@ -30,6 +37,7 @@ impl RoomManager {
             rooms: HashMap::new(),
             connection_to_room_info: HashMap::new(),
             rooms_connections_map: HashMap::new(),
+            game_loops: HashMap::new(),
         }
     }
 
@@ -123,13 +131,10 @@ impl RoomManager {
 
         if room.player_count() == 0 {
             self.rooms.remove(&room_id);
+            self.game_loops.remove(&room_id);
         }
 
         Ok(removed_player_name)
-    }
-
-    pub fn get_room_mut(&mut self, room_id: &str) -> Option<&mut RoomActor> {
-        self.rooms.get_mut(room_id)
     }
 
     pub fn destroy_room(
@@ -150,6 +155,9 @@ impl RoomManager {
         self.rooms
             .remove(room_id)
             .ok_or_else(|| RoomManagerError::RoomNotFound)?;
+
+        self.game_loops.remove(room_id);
+
         Ok(())
     }
 
@@ -165,6 +173,9 @@ impl RoomManager {
 
         let (game_started, turn_order) = if room.can_start_game() {
             let turn_order = room.start_game()?;
+
+            self.start_game_loop(&room_id, &turn_order)?;
+
             (true, Some(turn_order.order))
         } else {
             (false, None)
@@ -183,12 +194,57 @@ impl RoomManager {
         let room_id = self
             .get_player_room_from_connection_id(connection_id)
             .ok_or_else(|| RoomManagerError::RoomError(RoomError::PlayerNotInRoom))?;
+
         let room = self
             .rooms
             .get_mut(&room_id)
             .ok_or_else(|| RoomManagerError::RoomNotFound)?;
+
         let next_player_id = room.pass_turn(&player_id)?;
+
+        // Send turn pass event to game loop
+        if let Some(sender) = self.game_loops.get(&room_id) {
+            let _ = sender.try_send(GameEvent::TurnPass {
+                player_id: player_id.clone(),
+            });
+        }
+
         Ok(next_player_id)
+    }
+
+    fn start_game_loop(
+        &mut self,
+        room_id: &str,
+        turn_order: &TurnOrder,
+    ) -> Result<(), RoomManagerError> {
+        let (sender, receiver) = mpsc::channel(32);
+
+        self.game_loops.insert(room_id.to_string(), sender);
+
+        let mut game_loop = GameLoop::new();
+        let turn_order_clone = turn_order.clone();
+
+        tokio::spawn(async move {
+            let result = game_loop.run(turn_order_clone, receiver).await;
+            println!("Game loop finished with result: {:?}", result);
+        });
+
+        Ok(())
+    }
+
+    pub fn send_game_event(&self, room_id: &str, event: GameEvent) -> Result<(), RoomManagerError> {
+        if let Some(sender) = self.game_loops.get(room_id) {
+            sender
+                .try_send(event)
+                .map_err(|_| RoomManagerError::GameLoopError)?;
+            Ok(())
+        } else {
+            Err(RoomManagerError::GameLoopNotFound)
+        }
+    }
+
+    pub fn get_room_mut(&mut self, room_id: &str) -> Option<&mut RoomActor> {
+        self.rooms.get_mut(room_id)
     }
 
     pub fn get_player_id_from_connection_id(
@@ -233,8 +289,11 @@ pub enum RoomManagerError {
     PlayerInDifferentRoom,
     TurnOrderNotDefined,
     RoomNotFound,
+    GameLoopNotFound,
+    GameLoopError,
     RoomError(RoomError),
 }
+
 impl From<RoomError> for RoomManagerError {
     fn from(err: RoomError) -> Self {
         RoomManagerError::RoomError(err)

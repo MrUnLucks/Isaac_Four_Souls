@@ -1,26 +1,15 @@
-use std::{
-    ops::{Deref, DerefMut},
-    sync::mpsc,
-};
+use std::ops::{Deref, DerefMut};
 
-use crate::{
-    game::{
-        game_loop::{GameEvent, GameLoop},
-        turn_order::TurnOrder,
-    },
-    Room, RoomError,
-};
+use crate::{game::turn_order::TurnOrder, Room, RoomError};
 
 pub struct RoomActor {
     room: Room,
-    game_loop: GameLoop,
     turn_order: TurnOrder,
 }
 
 impl RoomActor {
     pub fn new(room_name: &str) -> Self {
         Self {
-            game_loop: GameLoop::new(),
             room: Room::new(room_name.to_string()),
             //Initialize empty on creation room to skip type checks w/o inserting Option<TurnOrder>
             turn_order: TurnOrder::new(vec!["Undefined".to_string()]),
