@@ -1,8 +1,8 @@
-use crate::game::order::TurnOrder;
 use tokio::sync::mpsc;
 
+use crate::game::turn_order::TurnOrder;
+
 pub struct GameLoop {
-    turn_order: TurnOrder,
     max_turns: u32,
 }
 
@@ -17,24 +17,25 @@ pub enum GameError {
 }
 
 impl GameLoop {
-    pub fn new(player_ids: Vec<String>) -> Self {
+    const MAX_TURNS: u32 = 4;
+    pub fn new() -> Self {
         Self {
-            turn_order: TurnOrder::new(&player_ids),
-            max_turns: 4,
+            max_turns: Self::MAX_TURNS,
         }
     }
 
     pub async fn run(
         &mut self,
+        mut turn_order: TurnOrder,
         mut event_receiver: mpsc::Receiver<GameEvent>,
     ) -> Result<(), GameError> {
         while let Some(event) = event_receiver.recv().await {
             match event {
                 GameEvent::TurnPass { player_id } => {
-                    if self.turn_order.is_player_turn(&player_id) {
-                        let next_player = self.turn_order.advance_turn();
+                    if turn_order.is_player_turn(&player_id) {
+                        let next_player = turn_order.advance_turn();
 
-                        if self.turn_order.turn_counter >= self.max_turns {
+                        if turn_order.get_turn_counter() >= self.max_turns {
                             () // Need handling
                         }
 

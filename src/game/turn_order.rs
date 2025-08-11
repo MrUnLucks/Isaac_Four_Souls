@@ -5,7 +5,7 @@ use rand::seq::SliceRandom;
 pub struct TurnOrder {
     pub order: Vec<String>,
     active_player_id: String,
-    pub turn_counter: u32,
+    turn_counter: u32,
 }
 
 pub enum TurnPhases {
@@ -18,7 +18,7 @@ pub enum TurnPhases {
 }
 
 impl TurnOrder {
-    pub fn new(player_ids: &Vec<String>) -> Self {
+    pub fn new(player_ids: Vec<String>) -> Self {
         let mut random_generator = rng();
         let mut order = player_ids.clone();
         order.shuffle(&mut random_generator);
@@ -30,6 +30,10 @@ impl TurnOrder {
             active_player_id,
             turn_counter: 0,
         }
+    }
+
+    pub fn get_turn_counter(&self) -> u32 {
+        self.turn_counter
     }
 
     pub fn is_player_turn(&self, player_id: &str) -> bool {

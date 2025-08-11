@@ -2,7 +2,7 @@ use serde::Serialize;
 
 use std::collections::{HashMap, HashSet};
 
-use crate::{Room, RoomError};
+use crate::{RoomActor, RoomError};
 
 #[derive(Debug, Clone)]
 pub struct PlayerRoomInfo {
@@ -12,7 +12,7 @@ pub struct PlayerRoomInfo {
 }
 
 pub struct RoomManager {
-    rooms: HashMap<String, Room>,
+    rooms: HashMap<String, RoomActor>,
     pub connection_to_room_info: HashMap<String, PlayerRoomInfo>, // connection_id -> room info
     pub rooms_connections_map: HashMap<String, HashSet<String>>, // room_id -> HashSet<connection_id>
 }
@@ -49,7 +49,7 @@ impl RoomManager {
             return Err(RoomManagerError::PlayerInDifferentRoom);
         }
 
-        let mut room = Room::new(room_name);
+        let mut room = RoomActor::new(&room_name);
         let new_player_id = room.add_player(first_player_name.clone())?;
         let room_id = room.get_id();
 
@@ -128,7 +128,7 @@ impl RoomManager {
         Ok(removed_player_name)
     }
 
-    pub fn get_room_mut(&mut self, room_id: &str) -> Option<&mut Room> {
+    pub fn get_room_mut(&mut self, room_id: &str) -> Option<&mut RoomActor> {
         self.rooms.get_mut(room_id)
     }
 
@@ -165,8 +165,7 @@ impl RoomManager {
 
         let (game_started, turn_order) = if room.can_start_game() {
             let turn_order = room.start_game()?;
-            let order = turn_order.order;
-            (true, Some(order))
+            (true, Some(turn_order.order))
         } else {
             (false, None)
         };
@@ -178,8 +177,8 @@ impl RoomManager {
         })
     }
 
-    // Temporary handling inside room, need to be moved inside RoomActor
     pub fn pass_turn(&mut self, connection_id: &str) -> Result<String, RoomManagerError> {
+        // Tuple needed for connection_id -> (player_id,room_id)
         let player_id = self.get_player_id_from_connection_id(connection_id)?;
         let room_id = self
             .get_player_room_from_connection_id(connection_id)
@@ -188,8 +187,8 @@ impl RoomManager {
             .rooms
             .get_mut(&room_id)
             .ok_or_else(|| RoomManagerError::RoomError(RoomError::RoomNotFound))?;
-        let has_passed = room.pass_turn(&player_id)?;
-        Ok(has_passed)
+        let next_player_id = room.pass_turn(&player_id)?;
+        Ok(next_player_id)
     }
 
     pub fn get_player_id_from_connection_id(

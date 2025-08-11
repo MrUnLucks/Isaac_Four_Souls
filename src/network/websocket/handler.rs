@@ -3,6 +3,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 
 use crate::game::game_loop::{GameEvent, GameLoop};
+use crate::game::turn_order::TurnOrder;
 use crate::network::lobby::LobbyState;
 use crate::network::message_handler::handle_message;
 use crate::network::messages::{
@@ -86,9 +87,10 @@ impl MessageHandler {
                 let (sender, receiver) = mpsc::channel(32);
                 state.game_loops.insert(room_id.clone(), sender);
 
-                let mut game_loop = GameLoop::new(turn_order.clone());
+                let mut game_loop = GameLoop::new();
+                let turn_order = TurnOrder::new(turn_order.clone());
                 tokio::spawn(async move {
-                    let result = game_loop.run(receiver).await;
+                    let result = game_loop.run(turn_order, receiver).await;
                     println!("{:?}", result);
                 });
             }
