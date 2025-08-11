@@ -5,9 +5,10 @@ use tokio::sync::{mpsc, Mutex};
 use crate::network::lobby::LobbyState;
 use crate::network::message_handler::handle_message;
 use crate::network::messages::{
-    deserialize_message, serialize_response, ClientMessage, ServerError, ServerResponse,
+    deserialize_message, serialize_response, ClientMessage, ServerResponse,
 };
 use crate::network::websocket::commands::ConnectionCommand;
+use crate::AppError;
 
 pub struct MessageHandler;
 
@@ -30,7 +31,9 @@ impl MessageHandler {
             Err(e) => {
                 eprintln!("❌ Failed to parse message: {}", e);
                 let error_response = ServerResponse::Error {
-                    message: ServerError::UnknownResponse,
+                    message: AppError::UnknownMessage {
+                        message: "Unknown message sent to server".to_string(),
+                    },
                 };
                 if let Ok(json) = serialize_response(&error_response) {
                     cmd_sender.send(ConnectionCommand::SendToPlayer {
@@ -84,7 +87,9 @@ impl MessageHandler {
             Err(e) => {
                 eprintln!("❌ Failed to serialize response: {}", e);
                 let error_response = ServerResponse::Error {
-                    message: ServerError::UnknownResponse,
+                    message: AppError::UnknownMessage {
+                        message: "Unknown message sent to server".to_string(),
+                    },
                 };
                 if let Ok(error_json) = serialize_response(&error_response) {
                     cmd_sender.send(ConnectionCommand::SendToPlayer {

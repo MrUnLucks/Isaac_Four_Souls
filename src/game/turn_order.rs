@@ -4,7 +4,7 @@ use rand::seq::SliceRandom;
 #[derive(Debug, Clone)]
 pub struct TurnOrder {
     pub order: Vec<String>,
-    active_player_id: String,
+    pub active_player_id: String,
     turn_counter: u32,
 }
 

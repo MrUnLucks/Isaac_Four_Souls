@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::fmt;
 use uuid::Uuid;
+
+use crate::{AppError, AppResult};
 
 #[derive(Debug, Clone)]
 pub struct Room {
@@ -36,12 +37,17 @@ impl Room {
         }
     }
 
-    pub fn add_player(&mut self, player_name: String) -> Result<String, RoomError> {
+    pub fn add_player(&mut self, player_name: String) -> AppResult<String> {
         if self.players.len() >= self.max_players {
-            return Err(RoomError::RoomFull);
+            return Err(AppError::RoomFull {
+                room_id: self.get_id(),
+                max_players: self.max_players,
+            });
         }
         if self.state != RoomState::Lobby {
-            return Err(RoomError::RoomInGame);
+            return Err(AppError::RoomInGame {
+                room_id: self.get_id(),
+            });
         }
 
         let new_player_id = Uuid::new_v4().to_string();
@@ -50,22 +56,24 @@ impl Room {
         Ok(new_player_id)
     }
 
-    pub fn remove_player(&mut self, player_id: &str) -> Result<String, RoomError> {
+    pub fn remove_player(&mut self, player_id: &str) -> AppResult<String> {
         if self.state != RoomState::Lobby {
-            return Err(RoomError::RoomInGame);
+            return Err(AppError::RoomInGame {
+                room_id: self.get_id(),
+            });
         }
         let player_name = self
             .players
             .remove(player_id)
-            .ok_or(RoomError::PlayerNotInRoom)?;
+            .ok_or(AppError::ConnectionNotInRoom)?;
         self.players_ready.remove(player_id); // Always safe to call
 
         Ok(player_name)
     }
 
-    pub fn add_player_ready(&mut self, player_id: &str) -> Result<HashSet<String>, RoomError> {
+    pub fn add_player_ready(&mut self, player_id: &str) -> AppResult<HashSet<String>> {
         if !self.players.contains_key(player_id) {
-            Err(RoomError::PlayerNotInRoom)
+            Err(AppError::ConnectionNotInRoom)
         } else if self.players_ready.contains(player_id) {
             Ok(self.players_ready.clone())
         } else {
@@ -95,38 +103,13 @@ impl Room {
     pub fn player_count(&self) -> usize {
         self.players.len()
     }
+    pub fn player_ready_count(&self) -> usize {
+        self.players_ready.len()
+    }
     pub fn get_id(&self) -> String {
         self.id.clone()
     }
     pub fn get_players_id(&self) -> Vec<String> {
         self.players.keys().cloned().collect()
-    }
-}
-
-#[derive(Debug, PartialEq, Serialize)]
-pub enum RoomError {
-    RoomFull,
-    RoomInGame,
-    PlayerNotInRoom,
-    PlayersNotReady,
-    PlayerAlreadyInRoom,
-    RoomNotFound,
-    TurnOrderNotDefined,
-    NotPlayerTurn,
-}
-
-// Temporary debugging, remove
-impl fmt::Display for RoomError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            RoomError::RoomFull => write!(f, "Room is full"),
-            RoomError::RoomInGame => write!(f, "Room is currently in game"),
-            RoomError::PlayerNotInRoom => write!(f, "Player not found"),
-            RoomError::PlayersNotReady => write!(f, "Players are not ready"),
-            RoomError::PlayerAlreadyInRoom => write!(f, "Player already in room"),
-            RoomError::RoomNotFound => write!(f, "Room not found"),
-            RoomError::TurnOrderNotDefined => write!(f, "Turn Order not defined"),
-            RoomError::NotPlayerTurn => write!(f, "Not the player's turn"),
-        }
     }
 }

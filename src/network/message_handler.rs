@@ -1,20 +1,22 @@
 use crate::{
-    network::messages::{ClientMessage, ServerError, ServerResponse},
-    RoomManager,
+    network::messages::{ClientMessage, ServerResponse},
+    AppError, AppResult, RoomManager,
 };
 
 pub fn handle_message(
     msg: ClientMessage,
     room_manager: &mut RoomManager,
     connection_id: &str,
-) -> Result<ServerResponse, ServerError> {
+) -> AppResult<ServerResponse> {
     match msg {
         ClientMessage::Ping => Ok(ServerResponse::Pong),
 
         // This may need to be moved inside room_manager
         ClientMessage::Chat { message } => {
             match room_manager.connection_to_room_info.get(connection_id) {
-                None => Err(ServerError::PlayerNotFound),
+                None => Err(AppError::ConnectionNotFound {
+                    connection_id: connection_id.to_string(),
+                }),
                 Some(room_info) => Ok(ServerResponse::ChatMessage {
                     player_name: room_info.clone().player_name,
                     message: message,

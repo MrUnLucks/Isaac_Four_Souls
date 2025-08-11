@@ -1,4 +1,3 @@
-use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use tokio::sync::mpsc;
 
@@ -7,7 +6,7 @@ use crate::{
         game_loop::{GameEvent, GameLoop},
         turn_order::TurnOrder,
     },
-    RoomActor, RoomError,
+    AppError, AppResult, RoomActor,
 };
 
 #[derive(Debug, Clone)]
@@ -46,15 +45,15 @@ impl RoomManager {
         room_name: String,
         first_player_connection_id: String,
         first_player_name: String,
-    ) -> Result<(String, String), RoomManagerError> {
+    ) -> AppResult<(String, String)> {
         if room_name.trim().is_empty() {
-            return Err(RoomManagerError::RoomNameInvalid); // Frontend form handling preferably
+            return Err(AppError::RoomNameEmpty); // Frontend form handling preferably
         }
         if self
             .connection_to_room_info
             .contains_key(&first_player_connection_id)
         {
-            return Err(RoomManagerError::PlayerInDifferentRoom);
+            return Err(AppError::ConnectionNotInRoom);
         }
 
         let mut room = RoomActor::new(&room_name);
@@ -81,15 +80,14 @@ impl RoomManager {
         room_id: &str,
         connection_id: String,
         player_name: String,
-    ) -> Result<String, RoomManagerError> {
+    ) -> AppResult<String> {
         if self.connection_to_room_info.contains_key(&connection_id) {
-            return Err(RoomManagerError::PlayerInDifferentRoom);
+            return Err(AppError::ConnectionNotInRoom);
         }
 
-        let room = self
-            .rooms
-            .get_mut(room_id)
-            .ok_or(RoomManagerError::RoomNotFound)?;
+        let room = self.rooms.get_mut(room_id).ok_or(AppError::RoomNotFound {
+            room_id: room_id.to_string(),
+        })?;
         let new_player_id = room.add_player(player_name.clone())?;
         self.connection_to_room_info.insert(
             connection_id.clone(),
@@ -107,7 +105,7 @@ impl RoomManager {
     }
 
     // Return player name to broadcast it
-    pub fn leave_room(&mut self, connection_id: &str) -> Result<String, RoomManagerError> {
+    pub fn leave_room(&mut self, connection_id: &str) -> AppResult<String> {
         let PlayerRoomInfo {
             room_id,
             room_player_id,
@@ -115,17 +113,21 @@ impl RoomManager {
         } = self
             .connection_to_room_info
             .remove(connection_id)
-            .ok_or_else(|| RoomManagerError::RoomError(RoomError::PlayerNotInRoom))?;
+            .ok_or_else(|| AppError::ConnectionNotInRoom)?;
 
         let room = self
             .rooms
             .get_mut(&room_id)
-            .ok_or_else(|| RoomManagerError::RoomNotFound)?;
+            .ok_or_else(|| AppError::RoomNotFound {
+                room_id: room_id.clone(),
+            })?;
 
         let connection_set = self
             .rooms_connections_map
             .get_mut(&room_id.to_string())
-            .ok_or_else(|| RoomManagerError::RoomNotFound)?;
+            .ok_or_else(|| AppError::RoomNotFound {
+                room_id: room_id.clone(),
+            })?;
         connection_set.remove(connection_id); // Safe to call
         let removed_player_name = room.remove_player(&room_player_id)?;
 
@@ -137,37 +139,36 @@ impl RoomManager {
         Ok(removed_player_name)
     }
 
-    pub fn destroy_room(
-        &mut self,
-        room_id: &str,
-        connection_id: &str,
-    ) -> Result<(), RoomManagerError> {
+    pub fn destroy_room(&mut self, room_id: &str, connection_id: &str) -> AppResult<()> {
         self.connection_to_room_info
             .remove(connection_id)
-            .ok_or_else(|| RoomManagerError::RoomError(RoomError::PlayerNotInRoom))?;
+            .ok_or_else(|| AppError::ConnectionNotInRoom)?;
 
         let connection_set = self
             .rooms_connections_map
             .get_mut(&room_id.to_string())
-            .ok_or_else(|| RoomManagerError::RoomNotFound)?;
+            .ok_or_else(|| AppError::RoomNotFound {
+                room_id: room_id.to_string(),
+            })?;
         connection_set.remove(connection_id); // Safe to call
 
         self.rooms
             .remove(room_id)
-            .ok_or_else(|| RoomManagerError::RoomNotFound)?;
+            .ok_or_else(|| AppError::RoomNotFound {
+                room_id: room_id.to_string(),
+            })?;
 
         self.game_loops.remove(room_id);
 
         Ok(())
     }
 
-    pub fn ready_player(&mut self, player_id: &str) -> Result<ReadyPlayerResult, RoomManagerError> {
+    pub fn ready_player(&mut self, player_id: &str) -> AppResult<ReadyPlayerResult> {
         let room_id = Self::get_player_room_from_player_id(self, player_id)?;
 
-        let room = self
-            .rooms
-            .get_mut(&room_id)
-            .ok_or(RoomManagerError::RoomNotFound)?;
+        let room = self.rooms.get_mut(&room_id).ok_or(AppError::RoomNotFound {
+            room_id: room_id.clone(),
+        })?;
 
         let players_ready = room.add_player_ready(player_id)?;
 
@@ -188,17 +189,19 @@ impl RoomManager {
         })
     }
 
-    pub fn pass_turn(&mut self, connection_id: &str) -> Result<String, RoomManagerError> {
+    pub fn pass_turn(&mut self, connection_id: &str) -> AppResult<String> {
         // Tuple needed for connection_id -> (player_id,room_id)
         let player_id = self.get_player_id_from_connection_id(connection_id)?;
         let room_id = self
             .get_player_room_from_connection_id(connection_id)
-            .ok_or_else(|| RoomManagerError::RoomError(RoomError::PlayerNotInRoom))?;
+            .ok_or_else(|| AppError::ConnectionNotInRoom)?;
 
         let room = self
             .rooms
             .get_mut(&room_id)
-            .ok_or_else(|| RoomManagerError::RoomNotFound)?;
+            .ok_or_else(|| AppError::RoomNotFound {
+                room_id: room_id.clone(),
+            })?;
 
         let next_player_id = room.pass_turn(&player_id)?;
 
@@ -212,11 +215,7 @@ impl RoomManager {
         Ok(next_player_id)
     }
 
-    fn start_game_loop(
-        &mut self,
-        room_id: &str,
-        turn_order: &TurnOrder,
-    ) -> Result<(), RoomManagerError> {
+    fn start_game_loop(&mut self, room_id: &str, turn_order: &TurnOrder) -> AppResult<()> {
         let (sender, receiver) = mpsc::channel(32);
 
         self.game_loops.insert(room_id.to_string(), sender);
@@ -232,14 +231,18 @@ impl RoomManager {
         Ok(())
     }
 
-    pub fn send_game_event(&self, room_id: &str, event: GameEvent) -> Result<(), RoomManagerError> {
+    pub fn send_game_event(&self, room_id: &str, event: GameEvent) -> AppResult<()> {
         if let Some(sender) = self.game_loops.get(room_id) {
             sender
                 .try_send(event)
-                .map_err(|_| RoomManagerError::GameLoopError)?;
+                .map_err(|err| AppError::GameEventSendFailed {
+                    reason: err.to_string(),
+                })?;
             Ok(())
         } else {
-            Err(RoomManagerError::GameLoopNotFound)
+            Err(AppError::GameLoopNotFound {
+                room_id: room_id.to_string(),
+            })
         }
     }
 
@@ -247,25 +250,19 @@ impl RoomManager {
         self.rooms.get_mut(room_id)
     }
 
-    pub fn get_player_id_from_connection_id(
-        &self,
-        connection_id: &str,
-    ) -> Result<String, RoomManagerError> {
+    pub fn get_player_id_from_connection_id(&self, connection_id: &str) -> AppResult<String> {
         self.connection_to_room_info
             .get(connection_id)
-            .ok_or_else(|| RoomManagerError::RoomError(RoomError::PlayerNotInRoom))
+            .ok_or_else(|| AppError::ConnectionNotInRoom)
             .map(|player| player.room_player_id.clone())
     }
 
-    pub fn get_player_room_from_player_id(
-        &self,
-        player_id: &str,
-    ) -> Result<String, RoomManagerError> {
+    pub fn get_player_room_from_player_id(&self, player_id: &str) -> AppResult<String> {
         self.connection_to_room_info
             .values()
             .find(|info| info.room_player_id == player_id)
             .map(|info| info.room_id.clone())
-            .ok_or_else(|| RoomManagerError::RoomError(RoomError::PlayerNotInRoom))
+            .ok_or_else(|| AppError::ConnectionNotInRoom)
     }
 
     pub fn get_player_room_from_connection_id(&self, connection_id: &str) -> Option<String> {
@@ -280,22 +277,5 @@ impl RoomManager {
 
     pub fn get_player_list(&self, room_id: &str) -> Option<Vec<String>> {
         self.rooms.get(room_id).map(|x| x.get_players_id())
-    }
-}
-
-#[derive(Debug, Serialize)]
-pub enum RoomManagerError {
-    RoomNameInvalid,
-    PlayerInDifferentRoom,
-    TurnOrderNotDefined,
-    RoomNotFound,
-    GameLoopNotFound,
-    GameLoopError,
-    RoomError(RoomError),
-}
-
-impl From<RoomError> for RoomManagerError {
-    fn from(err: RoomError) -> Self {
-        RoomManagerError::RoomError(err)
     }
 }

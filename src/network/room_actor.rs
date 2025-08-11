@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::{game::turn_order::TurnOrder, Room, RoomError};
+use crate::{game::turn_order::TurnOrder, AppError, AppResult, Room};
 
 pub struct RoomActor {
     room: Room,
@@ -16,22 +16,27 @@ impl RoomActor {
         }
     }
 
-    pub fn start_game(&mut self) -> Result<TurnOrder, RoomError> {
+    pub fn start_game(&mut self) -> AppResult<TurnOrder> {
         if self.can_start_game() {
             self.room.set_state_in_game();
             self.turn_order = TurnOrder::new(self.room.get_players_id());
             Ok(self.turn_order.clone())
         } else {
-            Err(RoomError::PlayersNotReady)
+            Err(AppError::PlayersNotReady {
+                ready_count: self.player_ready_count(),
+                total_count: self.player_count(),
+            })
         }
     }
 
-    pub fn pass_turn(&mut self, player_id: &str) -> Result<String, RoomError> {
+    pub fn pass_turn(&mut self, player_id: &str) -> AppResult<String> {
         if self.turn_order.is_player_turn(player_id) {
             let next_player_id = self.turn_order.advance_turn();
             Ok(next_player_id)
         } else {
-            Err(RoomError::NotPlayerTurn)
+            Err(AppError::NotPlayerTurn {
+                player_id: self.turn_order.active_player_id.clone(),
+            })
         }
     }
 }

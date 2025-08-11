@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::RoomManagerError;
+use crate::AppError;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ClientMessage {
@@ -71,7 +71,7 @@ pub enum ServerResponse {
         next_player_id: String,
     },
     Error {
-        message: ServerError,
+        message: AppError,
     },
 }
 
@@ -81,19 +81,4 @@ pub fn deserialize_message(json: &str) -> Result<ClientMessage, serde_json::Erro
 
 pub fn serialize_response(response: &ServerResponse) -> Result<String, serde_json::Error> {
     serde_json::to_string(response)
-}
-
-#[derive(Debug, Serialize)]
-pub enum ServerError {
-    PlayerNotFound,
-    RoomNotFound,
-    ConnectionNotFound,
-    FailedToSendMessage,
-    RoomManagerError(RoomManagerError),
-    UnknownResponse,
-}
-impl From<RoomManagerError> for ServerError {
-    fn from(err: RoomManagerError) -> Self {
-        ServerError::RoomManagerError(err)
-    }
 }
