@@ -1,9 +1,10 @@
 use tokio::sync::mpsc;
 
-use crate::game::turn_order::TurnOrder;
+use crate::game::{decks::LootDeck, turn_order::TurnOrder};
 
 pub struct GameLoop {
     max_turns: u32,
+    loot_deck: LootDeck,
 }
 
 pub enum GameEvent {
@@ -19,7 +20,9 @@ pub enum GameError {
 impl GameLoop {
     const MAX_TURNS: u32 = 4;
     pub fn new() -> Self {
+        let loot_deck = LootDeck::new();
         Self {
+            loot_deck,
             max_turns: Self::MAX_TURNS,
         }
     }
