@@ -7,7 +7,7 @@ use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 use crate::network::lobby::LobbyState;
 use crate::network::messages::{serialize_response, ServerResponse};
-use crate::network::websocket::commands::ConnectionCommand;
+use crate::network::websocket::connection_commands::ConnectionCommand;
 use crate::network::websocket::handler::MessageHandler;
 
 pub struct ConnectionHandler;

@@ -7,7 +7,7 @@ use crate::network::message_handler::handle_message;
 use crate::network::messages::{
     deserialize_message, serialize_response, ClientMessage, ServerResponse,
 };
-use crate::network::websocket::commands::ConnectionCommand;
+use crate::network::websocket::connection_commands::ConnectionCommand;
 
 pub struct MessageHandler;
 

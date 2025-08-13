@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use crate::network::lobby::LobbyState;
 use crate::network::websocket::{
-    commands::{CommandProcessor, ConnectionCommand},
-    connection::ConnectionHandler,
+    connection_commands::{CommandProcessor, ConnectionCommand},
+    connection_handler::ConnectionHandler,
 };
 
 pub struct WebsocketServer {
