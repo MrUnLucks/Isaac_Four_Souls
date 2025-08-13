@@ -139,7 +139,7 @@ impl RoomManager {
         Ok(removed_player_name)
     }
 
-    pub fn destroy_room(&mut self, room_id: &str, connection_id: &str) -> AppResult<()> {
+    pub fn destroy_room(&mut self, room_id: &str, connection_id: &str) -> AppResult<String> {
         self.connection_to_room_info
             .remove(connection_id)
             .ok_or_else(|| AppError::ConnectionNotInRoom)?;
@@ -160,7 +160,7 @@ impl RoomManager {
 
         self.game_loops.remove(room_id);
 
-        Ok(())
+        Ok(room_id.to_string())
     }
 
     pub fn ready_player(&mut self, player_id: &str) -> AppResult<ReadyPlayerResult> {

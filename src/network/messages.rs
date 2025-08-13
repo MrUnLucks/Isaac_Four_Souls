@@ -34,14 +34,16 @@ pub enum ServerResponse {
         player_name: String,
         message: String,
     },
-    RoomCreated {
+    RoomCreatedBroadcast {
         room_id: String,
     },
-    FirstPlayerRoomCreated {
+    RoomCreated {
         room_id: String,
         player_id: String,
     },
-    RoomDestroyed,
+    RoomDestroyed {
+        room_id: String,
+    },
     SelfJoined {
         player_name: String,
         player_id: String,
@@ -78,6 +80,8 @@ pub fn deserialize_message(json: &str) -> Result<ClientMessage, serde_json::Erro
     serde_json::from_str(json)
 }
 
-pub fn serialize_response(response: &ServerResponse) -> Result<String, serde_json::Error> {
-    serde_json::to_string(response)
+// If this fails something is broken in the response code so it's correct to crash
+pub fn serialize_response(response: ServerResponse) -> String {
+    serde_json::to_string(&response)
+        .expect("Failed to serialize response - this should never happen with valid data")
 }

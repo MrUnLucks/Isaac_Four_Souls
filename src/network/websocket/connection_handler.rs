@@ -8,7 +8,7 @@ use tokio_tungstenite::{accept_async, tungstenite::Message};
 use crate::network::lobby::LobbyState;
 use crate::network::messages::{serialize_response, ServerResponse};
 use crate::network::websocket::connection_commands::ConnectionCommand;
-use crate::network::websocket::handler::MessageHandler;
+use crate::network::websocket::message_router::handle_text_message;
 
 pub struct ConnectionHandler;
 
@@ -30,10 +30,10 @@ impl ConnectionHandler {
             sender: ws_sender,
         })?;
 
-        // Send connection ID to client
-        let connection_id_message = serialize_response(&ServerResponse::ConnectionId {
+        // TEMPORARY FOR DEBUGGING: Send connection ID to client
+        let connection_id_message = serialize_response(ServerResponse::ConnectionId {
             connection_id: connection_id.clone(),
-        })?;
+        });
         cmd_sender.send(ConnectionCommand::SendToPlayer {
             connection_id: connection_id.clone(),
             message: connection_id_message,
@@ -43,20 +43,7 @@ impl ConnectionHandler {
         while let Some(msg) = ws_receiver.next().await {
             match msg? {
                 Message::Text(text) => {
-                    if let Err(e) = MessageHandler::handle_text_message(
-                        text,
-                        &connection_id,
-                        &lobby_state,
-                        &cmd_sender,
-                    )
-                    .await
-                    {
-                        eprintln!("❌ Error handling message: {}", e);
-                    }
-                }
-                Message::Close(_) => {
-                    println!("👋 Connection {} requested close", connection_id);
-                    break;
+                    handle_text_message(text, &connection_id, &lobby_state, &cmd_sender).await
                 }
                 _ => {
                     // Handle other message types
