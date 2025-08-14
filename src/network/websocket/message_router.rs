@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use tokio::sync::mpsc::error::SendError;
-use tokio::sync::{mpsc, Mutex, MutexGuard};
+use tokio::sync::{mpsc, Mutex};
 
 use crate::network::lobby::LobbyState;
 use crate::network::messages::{
