@@ -122,6 +122,45 @@ impl AppError {
             ErrorCategory::ServerError => 500,
         }
     }
+
+    pub fn variant_name(&self) -> &'static str {
+        match self {
+            AppError::PlayerAlreadyInRoom { .. } => "PlayerAlreadyInRoom",
+            AppError::ConnectionNotInRoom => "ConnectionNotInRoom",
+            AppError::NotPlayerTurn { .. } => "NotPlayerTurn",
+            AppError::RoomNotFound { .. } => "RoomNotFound",
+            AppError::RoomFull { .. } => "RoomFull",
+            AppError::RoomInGame { .. } => "RoomInGame",
+            AppError::RoomNameEmpty => "RoomNameEmpty",
+            AppError::PlayersNotReady { .. } => "PlayersNotReady",
+            AppError::ConnectionNotFound { .. } => "ConnectionNotFound",
+            AppError::MessageSendFailed { .. } => "MessageSendFailed",
+            AppError::GameLoopNotFound { .. } => "GameLoopNotFound",
+            AppError::GameEventSendFailed { .. } => "GameEventSendFailed",
+            AppError::TurnOrderNotInitialized => "TurnOrderNotInitialized",
+            AppError::InvalidPlayerName { .. } => "InvalidPlayerName",
+            AppError::InvalidRoomName { .. } => "InvalidRoomName",
+            AppError::SerializationError { .. } => "SerializationError",
+            AppError::WebSocketError { .. } => "WebSocketError",
+            AppError::UnknownMessage { .. } => "UnknownMessage",
+            AppError::Internal { .. } => "Internal",
+        }
+    }
+
+    pub fn user_friendly_message(&self) -> String {
+        match self {
+            AppError::RoomFull { max_players, .. } => {
+                format!("Room is full (maximum {} players)", max_players)
+            }
+            AppError::RoomNotFound { .. } => {
+                "The room you're looking for doesn't exist".to_string()
+            }
+            AppError::NotPlayerTurn { .. } => "It's not your turn yet".to_string(),
+            AppError::ConnectionNotInRoom => "You need to join a room first".to_string(),
+            AppError::SerializationError { .. } => "Invalid message format".to_string(),
+            _ => self.to_string(), // Use the error's display message
+        }
+    }
 }
 
 pub mod validation {

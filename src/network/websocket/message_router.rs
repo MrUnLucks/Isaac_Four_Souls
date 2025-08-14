@@ -1,5 +1,6 @@
 use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::mpsc::error::SendError;
+use tokio::sync::{mpsc, Mutex, MutexGuard};
 
 use crate::network::lobby::LobbyState;
 use crate::network::messages::{
@@ -17,18 +18,16 @@ pub async fn handle_text_message(
     let game_message = match deserialize_message(&text) {
         Ok(msg) => msg,
         Err(_) => {
-            let error_response = ServerResponse::Error {
-                message: AppError::SerializationError {
-                    message: "Failed to deserialize message".to_string(),
-                }
-                .to_string(),
-                code: 500,
-            };
-
-            cmd_sender.send(ConnectionCommand::SendToPlayer {
-                connection_id: connection_id.to_string(),
-                message: serialize_response(error_response),
+            let error_response = ServerResponse::from_app_error(&AppError::SerializationError {
+                message: "Failed to deserialize message".to_string(),
             });
+
+            cmd_sender
+                .send(ConnectionCommand::SendToPlayer {
+                    connection_id: connection_id.to_string(),
+                    message: serialize_response(error_response),
+                })
+                .unwrap();
 
             return;
         }
@@ -40,25 +39,39 @@ pub async fn handle_text_message(
         .get_player_room_from_connection_id(connection_id);
     let connection_id = connection_id.to_string();
 
+    handle_message(game_message, room_id, connection_id, cmd_sender, &mut state)
+        .expect("Critical send error, panicking tokio thread...");
+
+    // Ok(())
+}
+
+pub fn handle_message(
+    game_message: ClientMessage,
+    room_id: Option<String>,
+    connection_id: String,
+    cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
+    state: &mut LobbyState,
+) -> Result<(), SendError<ConnectionCommand>> {
     match game_message {
         ClientMessage::Ping => {
             cmd_sender.send(ConnectionCommand::SendToPlayer {
                 connection_id,
                 message: serialize_response(ServerResponse::Pong),
-            });
+            })?;
         }
         ClientMessage::Chat { message } => match room_id {
             None => {
                 cmd_sender.send(ConnectionCommand::SendToPlayer {
                     connection_id,
-                    message: AppError::RoomNotFound {
-                        room_id: "".to_string(),
-                    }
-                    .to_string(),
-                });
+                    message: serialize_response(ServerResponse::from_app_error(
+                        &AppError::RoomNotFound {
+                            room_id: "".to_string(),
+                        },
+                    )),
+                })?;
             }
             Some(room_id) => {
-                cmd_sender.send(ConnectionCommand::SendToRoom { room_id, message });
+                cmd_sender.send(ConnectionCommand::SendToRoom { room_id, message })?;
             }
         },
         ClientMessage::CreateRoom {
@@ -73,11 +86,8 @@ pub async fn handle_text_message(
                 Err(app_error) => {
                     cmd_sender.send(ConnectionCommand::SendToPlayer {
                         connection_id,
-                        message: serialize_response(ServerResponse::Error {
-                            message: app_error.to_string(),
-                            code: 500,
-                        }),
-                    });
+                        message: serialize_response(ServerResponse::from_app_error(&app_error)),
+                    })?;
                 }
                 Ok((room_id, new_player_id)) => {
                     cmd_sender.send(ConnectionCommand::SendToPlayer {
@@ -86,12 +96,12 @@ pub async fn handle_text_message(
                             room_id: room_id.clone(),
                             player_id: new_player_id,
                         }),
-                    });
+                    })?;
                     cmd_sender.send(ConnectionCommand::SendToAll {
                         message: serialize_response(ServerResponse::RoomCreatedBroadcast {
                             room_id,
                         }),
-                    });
+                    })?;
                 }
             }
         }
@@ -100,16 +110,13 @@ pub async fn handle_text_message(
                 Err(app_error) => {
                     cmd_sender.send(ConnectionCommand::SendToPlayer {
                         connection_id,
-                        message: serialize_response(ServerResponse::Error {
-                            message: app_error.to_string(),
-                            code: 500,
-                        }),
-                    });
+                        message: serialize_response(ServerResponse::from_app_error(&app_error)),
+                    })?;
                 }
                 Ok(room_id) => {
                     cmd_sender.send(ConnectionCommand::SendToAll {
                         message: serialize_response(ServerResponse::RoomDestroyed { room_id }),
-                    });
+                    })?;
                 }
             }
         }
@@ -125,11 +132,8 @@ pub async fn handle_text_message(
                 Err(app_error) => {
                     cmd_sender.send(ConnectionCommand::SendToPlayer {
                         connection_id: connection_id.clone(),
-                        message: serialize_response(ServerResponse::Error {
-                            message: app_error.to_string(),
-                            code: 500,
-                        }),
-                    });
+                        message: serialize_response(ServerResponse::from_app_error(&app_error)),
+                    })?;
                 }
                 Ok(player_id) => {
                     cmd_sender.send(ConnectionCommand::SendToPlayer {
@@ -138,7 +142,7 @@ pub async fn handle_text_message(
                             player_name: player_name.clone(),
                             player_id: player_id.clone(),
                         }),
-                    });
+                    })?;
                     cmd_sender.send(ConnectionCommand::SendToRoomExceptPlayer {
                         connection_id,
                         room_id,
@@ -146,7 +150,7 @@ pub async fn handle_text_message(
                             player_name,
                             player_id,
                         }),
-                    });
+                    })?;
                 }
             };
         }
@@ -154,11 +158,12 @@ pub async fn handle_text_message(
             None => {
                 cmd_sender.send(ConnectionCommand::SendToPlayer {
                     connection_id,
-                    message: AppError::RoomNotFound {
-                        room_id: "".to_string(),
-                    }
-                    .to_string(),
-                });
+                    message: serialize_response(ServerResponse::from_app_error(
+                        &AppError::RoomNotFound {
+                            room_id: "".to_string(),
+                        },
+                    )),
+                })?;
             }
             Some(room_id) => {
                 let leave_room_result = state.room_manager.leave_room(&connection_id);
@@ -166,17 +171,14 @@ pub async fn handle_text_message(
                     Err(app_error) => {
                         cmd_sender.send(ConnectionCommand::SendToPlayer {
                             connection_id,
-                            message: serialize_response(ServerResponse::Error {
-                                message: app_error.to_string(),
-                                code: 500,
-                            }),
-                        });
+                            message: serialize_response(ServerResponse::from_app_error(&app_error)),
+                        })?;
                     }
                     Ok(player_name) => {
                         cmd_sender.send(ConnectionCommand::SendToRoom {
                             room_id,
                             message: serialize_response(ServerResponse::PlayerLeft { player_name }),
-                        });
+                        })?;
                     }
                 }
             }
@@ -185,15 +187,21 @@ pub async fn handle_text_message(
             let player_id = state
                 .room_manager
                 .get_player_id_from_connection_id(&connection_id);
+            let Some(room_id) = room_id.as_ref() else {
+                cmd_sender.send(ConnectionCommand::SendToPlayer {
+                    connection_id,
+                    message: serialize_response(ServerResponse::from_app_error(
+                        &AppError::ConnectionNotInRoom,
+                    )),
+                })?;
+                return Ok(());
+            };
             match player_id {
                 Err(app_error) => {
                     cmd_sender.send(ConnectionCommand::SendToPlayer {
                         connection_id,
-                        message: serialize_response(ServerResponse::Error {
-                            message: app_error.to_string(),
-                            code: 500,
-                        }),
-                    });
+                        message: serialize_response(ServerResponse::from_app_error(&app_error)),
+                    })?;
                 }
                 Ok(player_id) => {
                     let ready_result = state.room_manager.ready_player(&player_id);
@@ -201,28 +209,27 @@ pub async fn handle_text_message(
                         Err(app_error) => {
                             cmd_sender.send(ConnectionCommand::SendToPlayer {
                                 connection_id,
-                                message: serialize_response(ServerResponse::Error {
-                                    message: app_error.to_string(),
-                                    code: 500,
-                                }),
-                            });
+                                message: serialize_response(ServerResponse::from_app_error(
+                                    &app_error,
+                                )),
+                            })?;
                         }
                         Ok(ready_player_result) => {
                             if ready_player_result.game_started {
                                 cmd_sender.send(ConnectionCommand::SendToRoom {
-                                    room_id: room_id.clone().unwrap(), //Check on readyplayer, safe to call
+                                    room_id: room_id.clone(), //Check on readyplayer, safe to call
                                     message: serialize_response(ServerResponse::GameStarted {
-                                        room_id: room_id.unwrap(), //Check on readyplayer, safe to call
+                                        room_id: room_id.clone(), //Check on readyplayer, safe to call
                                         turn_order: ready_player_result.turn_order.unwrap(), //Check on readyplayer, safe to call
                                     }),
-                                })
+                                })?;
                             } else {
                                 cmd_sender.send(ConnectionCommand::SendToPlayer {
                                     connection_id,
                                     message: serialize_response(ServerResponse::PlayersReady {
                                         players_ready: ready_player_result.players_ready,
                                     }),
-                                })
+                                })?
                             };
                         }
                     };
@@ -235,21 +242,17 @@ pub async fn handle_text_message(
                 Err(app_error) => {
                     cmd_sender.send(ConnectionCommand::SendToPlayer {
                         connection_id,
-                        message: serialize_response(ServerResponse::Error {
-                            message: app_error.to_string(),
-                            code: 500,
-                        }),
-                    });
+                        message: serialize_response(ServerResponse::from_app_error(&app_error)),
+                    })?;
                 }
                 Ok(next_player_id) => {
                     cmd_sender.send(ConnectionCommand::SendToRoom {
                         room_id: room_id.unwrap(), //Check on turn_pass, safe to call
                         message: serialize_response(ServerResponse::TurnChange { next_player_id }),
-                    });
+                    })?;
                 }
             }
         }
     };
-
-    // Ok(())
+    Ok(())
 }

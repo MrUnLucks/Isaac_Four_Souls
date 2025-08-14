@@ -2,6 +2,8 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
+use crate::AppError;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ClientMessage {
     Ping,
@@ -71,16 +73,28 @@ pub enum ServerResponse {
         next_player_id: String,
     },
     Error {
+        error_type: String, // "RoomFull", "PlayerNotFound" variant_name of errror
         message: String,
         code: u16,
+        // details: Option<serde_json::Value>, //Feature for clear frontend error handling(?)
     },
+}
+
+impl ServerResponse {
+    pub fn from_app_error(error: &AppError) -> Self {
+        ServerResponse::Error {
+            error_type: error.variant_name().to_string(),
+            message: error.user_friendly_message(),
+            code: error.status_code(),
+        }
+    }
 }
 
 pub fn deserialize_message(json: &str) -> Result<ClientMessage, serde_json::Error> {
     serde_json::from_str(json)
 }
 
-// If this fails something is broken in the response code so it's correct to crash
+// If this fails something is broken in the response code so it's correct to crash with .expect
 pub fn serialize_response(response: ServerResponse) -> String {
     serde_json::to_string(&response)
         .expect("Failed to serialize response - this should never happen with valid data")
