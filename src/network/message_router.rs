@@ -1,3 +1,4 @@
+use crate::game::outbound_handler::spawn_outbound_handler;
 use std::sync::Arc;
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Mutex};
@@ -40,8 +41,6 @@ pub async fn handle_text_message(
 
     handle_message(game_message, room_id, connection_id, cmd_sender, &mut state)
         .expect("Critical send error, panicking tokio thread...");
-
-    // Ok(())
 }
 
 pub fn handle_message(
@@ -232,10 +231,10 @@ pub fn handle_message(
                                         })?;
                                     }
                                     Some(players_id) => {
-                                        let turn_order = state
+                                        let game_start_result = state
                                             .game_loop_registry
                                             .start_game_loop(&room_id, players_id);
-                                        match turn_order {
+                                        match game_start_result {
                                             Err(app_error) => {
                                                 cmd_sender.send(
                                                     ConnectionCommand::SendToPlayer {
@@ -248,7 +247,7 @@ pub fn handle_message(
                                                     },
                                                 )?;
                                             }
-                                            Ok(turn_order) => {
+                                            Ok((turn_order, outbound_receiver)) => {
                                                 cmd_sender.send(ConnectionCommand::SendToRoom {
                                                     room_id: room_id.to_string(),
                                                     message: serialize_response(
@@ -264,6 +263,11 @@ pub fn handle_message(
                                                         },
                                                     ),
                                                 })?;
+                                                spawn_outbound_handler(
+                                                    room_id.to_string(),
+                                                    outbound_receiver,
+                                                    cmd_sender.clone(),
+                                                );
                                             }
                                         }
                                     }
@@ -301,27 +305,9 @@ pub fn handle_message(
                     })?;
                 }
                 Ok(player_id) => {
-                    let turn_pass_result = state
+                    let _ = state
                         .game_loop_registry
                         .send_game_event(room_id, GameEvent::TurnPass { player_id });
-                    match turn_pass_result {
-                        Err(app_error) => {
-                            cmd_sender.send(ConnectionCommand::SendToPlayer {
-                                connection_id,
-                                message: serialize_response(ServerResponse::from_app_error(
-                                    &app_error,
-                                )),
-                            })?;
-                        }
-                        Ok(_) => {
-                            cmd_sender.send(ConnectionCommand::SendToPlayer {
-                                connection_id,
-                                message: serialize_response(ServerResponse::TurnChange {
-                                    next_player_id: "implement me please".to_string(), //TODO!: implement
-                                }),
-                            })?;
-                        }
-                    }
                 }
             }
         }

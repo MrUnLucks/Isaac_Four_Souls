@@ -2,7 +2,6 @@ pub mod errors;
 pub mod game;
 pub mod network;
 
-// Re-export commonly used items for convenience
 pub use errors::{AppError, AppResult};
 pub use game::turn_order::TurnOrder;
 pub use network::connection_commands::{CommandProcessor, ConnectionCommand};

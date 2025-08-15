@@ -22,7 +22,6 @@ impl ConnectionHandler {
 
         let (ws_sender, mut ws_receiver) = ws_stream.split();
 
-        // Add connection to manager
         cmd_sender.send(ConnectionCommand::AddConnection {
             id: connection_id.clone(),
             sender: ws_sender,
@@ -37,7 +36,6 @@ impl ConnectionHandler {
             message: connection_id_message,
         })?;
 
-        // Handle incoming messages
         while let Some(msg) = ws_receiver.next().await {
             match msg? {
                 Message::Text(text) => {

@@ -1,5 +1,3 @@
-// src/errors.rs - Centralized error definitions
-
 use serde::Serialize;
 use thiserror::Error;
 
@@ -13,9 +11,6 @@ pub enum AppError {
 
     #[error("Connection is not in any room")]
     ConnectionNotInRoom,
-
-    #[error("Not player '{player_id}' turn")]
-    NotPlayerTurn { player_id: String },
 
     // Room-related errors
     #[error("Room '{room_id}' not found")]
@@ -90,7 +85,6 @@ impl AppError {
             | AppError::PlayerAlreadyInRoom { .. }
             | AppError::RoomFull { .. }
             | AppError::RoomInGame { .. }
-            | AppError::NotPlayerTurn { .. }
             | AppError::PlayersNotReady { .. } => ErrorCategory::ClientError,
 
             AppError::InvalidPlayerName { .. }
@@ -127,7 +121,6 @@ impl AppError {
         match self {
             AppError::PlayerAlreadyInRoom { .. } => "PlayerAlreadyInRoom",
             AppError::ConnectionNotInRoom => "ConnectionNotInRoom",
-            AppError::NotPlayerTurn { .. } => "NotPlayerTurn",
             AppError::RoomNotFound { .. } => "RoomNotFound",
             AppError::RoomFull { .. } => "RoomFull",
             AppError::RoomInGame { .. } => "RoomInGame",
@@ -155,7 +148,6 @@ impl AppError {
             AppError::RoomNotFound { .. } => {
                 "The room you're looking for doesn't exist".to_string()
             }
-            AppError::NotPlayerTurn { .. } => "It's not your turn yet".to_string(),
             AppError::ConnectionNotInRoom => "You need to join a room first".to_string(),
             AppError::SerializationError { .. } => "Invalid message format".to_string(),
             _ => self.to_string(), // Use the error's display message

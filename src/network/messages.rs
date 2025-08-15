@@ -71,6 +71,9 @@ pub enum ServerResponse {
     TurnChange {
         next_player_id: String,
     },
+    GameEnded {
+        winner_id: String,
+    },
     Error {
         error_type: String, // "RoomFull", "PlayerNotFound" variant_name of errror
         message: String,

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 
 use crate::game::game_loop::{GameEvent, GameLoop};
+use crate::game::outbound_handler::GameOutboundEvent; // ← Import from new module
 use crate::{AppError, AppResult, TurnOrder};
 
 /// Handles pure game logic and game loop management
@@ -20,10 +21,11 @@ impl GameLoopRegistry {
         &mut self,
         room_id: &str,
         players_id: Vec<String>,
-    ) -> AppResult<TurnOrder> {
-        let (sender, receiver) = mpsc::channel(32);
+    ) -> AppResult<(TurnOrder, mpsc::Receiver<GameOutboundEvent>)> {
+        let (inbound_sender, inbound_receiver) = mpsc::channel(32);
+        let (outbound_sender, outbound_receiver) = mpsc::channel(32);
 
-        self.game_loops.insert(room_id.to_string(), sender);
+        self.game_loops.insert(room_id.to_string(), inbound_sender);
 
         let mut game_loop = GameLoop::new();
         let turn_order = TurnOrder::new(players_id);
@@ -31,14 +33,16 @@ impl GameLoopRegistry {
         let room_id_clone = room_id.to_string();
 
         tokio::spawn(async move {
-            let result = game_loop.run(turn_order, receiver).await;
+            let result = game_loop
+                .run(turn_order, inbound_receiver, outbound_sender)
+                .await;
             println!(
                 "Game loop for room {} finished with result: {:?}",
                 room_id_clone, result
             );
         });
 
-        Ok(turn_order_clone)
+        Ok((turn_order_clone, outbound_receiver))
     }
 
     pub fn send_game_event(&self, room_id: &str, event: GameEvent) -> AppResult<()> {

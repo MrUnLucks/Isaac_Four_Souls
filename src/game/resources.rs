@@ -14,7 +14,7 @@ const VICTORY_SOULS: u8 = 4;
 
 impl Default for PlayerResources {
     fn default() -> Self {
-        Self::new(2) // Isaac's default health
+        Self::new(2)
     }
 }
 
