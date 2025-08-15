@@ -19,7 +19,7 @@ pub enum GameOutboundEvent {
 pub struct OutboundEventHandler {
     room_id: String,
     receiver: mpsc::Receiver<GameOutboundEvent>,
-    cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
+    cmd_sender: mpsc::UnboundedSender<ConnectionCommand>, //TODO: need refactor, no need to put network responsibility on the outbound_handler
 }
 
 impl OutboundEventHandler {

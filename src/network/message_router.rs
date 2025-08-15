@@ -18,14 +18,14 @@ pub async fn handle_text_message(
     let game_message = match deserialize_message(&text) {
         Ok(msg) => msg,
         Err(_) => {
-            let error_response = ServerResponse::from_app_error(&AppError::SerializationError {
-                message: "Failed to deserialize message".to_string(),
-            });
-
             cmd_sender
                 .send(ConnectionCommand::SendToPlayer {
                     connection_id: connection_id.to_string(),
-                    message: serialize_response(error_response),
+                    message: serialize_response(ServerResponse::from_app_error(
+                        &AppError::SerializationError {
+                            message: "Failed to deserialize message".to_string(),
+                        },
+                    )),
                 })
                 .unwrap();
 
@@ -69,7 +69,28 @@ pub fn handle_message(
                 })?;
             }
             Some(room_id) => {
-                cmd_sender.send(ConnectionCommand::SendToRoom { room_id, message })?;
+                let player_name = state
+                    .room_manager
+                    .get_player_name_from_connection_id(&connection_id);
+                match player_name {
+                    Some(player_name) => {
+                        cmd_sender.send(ConnectionCommand::SendToRoom {
+                            room_id,
+                            message: serialize_response(ServerResponse::ChatMessage {
+                                player_name,
+                                message,
+                            }),
+                        })?;
+                    }
+                    None => {
+                        cmd_sender.send(ConnectionCommand::SendToPlayer {
+                            connection_id,
+                            message: serialize_response(ServerResponse::from_app_error(
+                                &AppError::ConnectionNotInRoom,
+                            )),
+                        })?;
+                    }
+                }
             }
         },
         ClientMessage::CreateRoom {

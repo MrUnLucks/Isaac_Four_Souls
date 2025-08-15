@@ -190,6 +190,12 @@ impl RoomManager {
             .map(|player| player.room_id.clone())
     }
 
+    pub fn get_player_name_from_connection_id(&self, connection_id: &str) -> Option<String> {
+        self.connection_to_room_info
+            .get(connection_id)
+            .map(|player| player.player_name.clone())
+    }
+
     pub fn get_connections_id_from_room_id(&self, room_id: &str) -> Option<HashSet<String>> {
         self.rooms_connections_map.get(room_id).cloned()
     }
