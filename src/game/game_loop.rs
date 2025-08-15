@@ -4,7 +4,6 @@ use crate::game::decks::LootDeck;
 use crate::TurnOrder;
 
 pub struct GameLoop {
-    max_turns: u32,
     loot_deck: LootDeck,
 }
 
@@ -19,13 +18,9 @@ pub enum GameError {
 }
 
 impl GameLoop {
-    const MAX_TURNS: u32 = 4;
     pub fn new() -> Self {
         let loot_deck = LootDeck::new();
-        Self {
-            loot_deck,
-            max_turns: Self::MAX_TURNS,
-        }
+        Self { loot_deck }
     }
 
     pub async fn run(
@@ -38,10 +33,6 @@ impl GameLoop {
                 GameEvent::TurnPass { player_id } => {
                     if turn_order.is_player_turn(&player_id) {
                         let next_player = turn_order.advance_turn();
-
-                        if turn_order.get_turn_counter() >= self.max_turns {
-                            println!("Max turn Reached!");
-                        }
 
                         println!("Turn passed to: {}", next_player);
                     }

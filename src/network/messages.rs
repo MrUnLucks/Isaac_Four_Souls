@@ -60,12 +60,11 @@ pub enum ServerResponse {
     PlayersReady {
         players_ready: HashSet<String>,
     },
-    GameStarted {
+    LobbyStartedGame {
         room_id: String,
-        turn_order: Vec<String>,
     },
     //Broadcast on room enter
-    TurnOrder {
+    RoomGameStart {
         turn_order: Vec<String>,
     },
     //Broadcast for all players

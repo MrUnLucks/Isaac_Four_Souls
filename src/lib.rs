@@ -12,6 +12,5 @@ pub use network::game_loop_registry::GameLoopRegistry;
 pub use network::lobby::LobbyState;
 pub use network::message_router::handle_text_message;
 pub use network::room::Room;
-pub use network::room_actor::RoomActor;
 pub use network::room_manager::RoomManager;
 pub use network::server::WebsocketServer;

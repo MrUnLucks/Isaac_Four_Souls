@@ -16,24 +16,29 @@ impl GameLoopRegistry {
         }
     }
 
-    pub fn start_game_loop(&mut self, room_id: &str, turn_order: &TurnOrder) -> AppResult<()> {
+    pub fn start_game_loop(
+        &mut self,
+        room_id: &str,
+        players_id: Vec<String>,
+    ) -> AppResult<TurnOrder> {
         let (sender, receiver) = mpsc::channel(32);
 
         self.game_loops.insert(room_id.to_string(), sender);
 
         let mut game_loop = GameLoop::new();
+        let turn_order = TurnOrder::new(players_id);
         let turn_order_clone = turn_order.clone();
         let room_id_clone = room_id.to_string();
 
         tokio::spawn(async move {
-            let result = game_loop.run(turn_order_clone, receiver).await;
+            let result = game_loop.run(turn_order, receiver).await;
             println!(
                 "Game loop for room {} finished with result: {:?}",
                 room_id_clone, result
             );
         });
 
-        Ok(())
+        Ok(turn_order_clone)
     }
 
     pub fn send_game_event(&self, room_id: &str, event: GameEvent) -> AppResult<()> {

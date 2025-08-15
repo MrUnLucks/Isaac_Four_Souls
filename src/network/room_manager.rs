@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::{AppError, AppResult, RoomActor};
+use crate::{AppError, AppResult, Room};
 
 #[derive(Debug, Clone)]
 pub struct PlayerRoomInfo {
@@ -10,7 +10,7 @@ pub struct PlayerRoomInfo {
 }
 
 pub struct RoomManager {
-    pub rooms: HashMap<String, RoomActor>,
+    pub rooms: HashMap<String, Room>,
     pub connection_to_room_info: HashMap<String, PlayerRoomInfo>, // connection_id -> room info
     pub rooms_connections_map: HashMap<String, HashSet<String>>, // room_id -> HashSet<connection_id>
 }
@@ -19,7 +19,6 @@ pub struct RoomManager {
 pub struct ReadyPlayerResult {
     pub players_ready: HashSet<String>,
     pub game_started: bool,
-    pub turn_order: Option<Vec<String>>,
 }
 
 impl RoomManager {
@@ -47,7 +46,7 @@ impl RoomManager {
             return Err(AppError::ConnectionNotInRoom);
         }
 
-        let mut room = RoomActor::new(&room_name);
+        let mut room = Room::new(room_name);
         let new_player_id = room.add_player(first_player_name.clone())?;
         let room_id = room.get_id();
 
@@ -160,39 +159,13 @@ impl RoomManager {
 
         let players_ready = room.add_player_ready(player_id)?;
 
-        let (game_started, turn_order) = if room.can_start_game() {
-            let turn_order = room.start_game()?; // This still sets room state to InGame
-            (true, Some(turn_order.order))
-        } else {
-            (false, None)
-        };
-
         Ok(ReadyPlayerResult {
             players_ready,
-            game_started,
-            turn_order,
+            game_started: room.can_start_game(),
         })
     }
 
-    pub fn pass_turn(&mut self, connection_id: &str) -> AppResult<String> {
-        let player_id = self.get_player_id_from_connection_id(connection_id)?;
-        let room_id = self
-            .get_player_room_from_connection_id(connection_id)
-            .ok_or_else(|| AppError::ConnectionNotInRoom)?;
-
-        let room = self
-            .rooms
-            .get_mut(&room_id)
-            .ok_or_else(|| AppError::RoomNotFound {
-                room_id: room_id.clone(),
-            })?;
-
-        let next_player_id = room.pass_turn(&player_id)?;
-
-        Ok(next_player_id)
-    }
-
-    pub fn get_room_mut(&mut self, room_id: &str) -> Option<&mut RoomActor> {
+    pub fn get_room_mut(&mut self, room_id: &str) -> Option<&mut Room> {
         self.rooms.get_mut(room_id)
     }
 

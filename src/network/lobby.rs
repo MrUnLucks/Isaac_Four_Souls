@@ -4,7 +4,7 @@ use crate::{GameLoopRegistry, RoomManager};
 pub struct LobbyState {
     pub room_manager: RoomManager,
     pub connection_manager: ConnectionManager,
-    pub game_engine: GameLoopRegistry,
+    pub game_loop_registry: GameLoopRegistry,
 }
 
 impl LobbyState {
@@ -12,7 +12,7 @@ impl LobbyState {
         Self {
             room_manager: RoomManager::new(),
             connection_manager: ConnectionManager::new(),
-            game_engine: GameLoopRegistry::new(),
+            game_loop_registry: GameLoopRegistry::new(),
         }
     }
 }
