@@ -4,6 +4,7 @@ pub mod network;
 
 // Re-export commonly used items for convenience
 pub use errors::{AppError, AppResult};
+pub use network::game_loop_registry::GameLoopRegistry;
 pub use network::room::Room;
 pub use network::room_actor::RoomActor;
 pub use network::room_manager::RoomManager;

@@ -1,3 +1,4 @@
+pub mod game_loop_registry;
 pub mod lobby;
 pub mod messages;
 pub mod room;

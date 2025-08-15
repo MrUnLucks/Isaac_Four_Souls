@@ -1,13 +1,6 @@
 use std::collections::{HashMap, HashSet};
-use tokio::sync::mpsc;
 
-use crate::{
-    game::{
-        game_loop::{GameEvent, GameLoop},
-        turn_order::TurnOrder,
-    },
-    AppError, AppResult, RoomActor,
-};
+use crate::{AppError, AppResult, RoomActor};
 
 #[derive(Debug, Clone)]
 pub struct PlayerRoomInfo {
@@ -20,7 +13,6 @@ pub struct RoomManager {
     pub rooms: HashMap<String, RoomActor>,
     pub connection_to_room_info: HashMap<String, PlayerRoomInfo>, // connection_id -> room info
     pub rooms_connections_map: HashMap<String, HashSet<String>>, // room_id -> HashSet<connection_id>
-    pub game_loops: HashMap<String, mpsc::Sender<GameEvent>>,    // room_id -> game event sender
 }
 
 #[derive(Debug)]
@@ -36,7 +28,6 @@ impl RoomManager {
             rooms: HashMap::new(),
             connection_to_room_info: HashMap::new(),
             rooms_connections_map: HashMap::new(),
-            game_loops: HashMap::new(),
         }
     }
 
@@ -47,7 +38,7 @@ impl RoomManager {
         first_player_name: String,
     ) -> AppResult<(String, String)> {
         if room_name.trim().is_empty() {
-            return Err(AppError::RoomNameEmpty); // Frontend form handling preferably
+            return Err(AppError::RoomNameEmpty);
         }
         if self
             .connection_to_room_info
@@ -133,7 +124,6 @@ impl RoomManager {
 
         if room.player_count() == 0 {
             self.rooms.remove(&room_id);
-            self.game_loops.remove(&room_id);
         }
 
         Ok(removed_player_name)
@@ -150,15 +140,13 @@ impl RoomManager {
             .ok_or_else(|| AppError::RoomNotFound {
                 room_id: room_id.to_string(),
             })?;
-        connection_set.remove(connection_id); // Safe to call
+        connection_set.remove(connection_id);
 
         self.rooms
             .remove(room_id)
             .ok_or_else(|| AppError::RoomNotFound {
                 room_id: room_id.to_string(),
             })?;
-
-        self.game_loops.remove(room_id);
 
         Ok(room_id.to_string())
     }
@@ -173,10 +161,7 @@ impl RoomManager {
         let players_ready = room.add_player_ready(player_id)?;
 
         let (game_started, turn_order) = if room.can_start_game() {
-            let turn_order = room.start_game()?;
-
-            self.start_game_loop(&room_id, &turn_order)?;
-
+            let turn_order = room.start_game()?; // This still sets room state to InGame
             (true, Some(turn_order.order))
         } else {
             (false, None)
@@ -190,7 +175,6 @@ impl RoomManager {
     }
 
     pub fn pass_turn(&mut self, connection_id: &str) -> AppResult<String> {
-        // Tuple needed for connection_id -> (player_id,room_id)
         let player_id = self.get_player_id_from_connection_id(connection_id)?;
         let room_id = self
             .get_player_room_from_connection_id(connection_id)
@@ -205,45 +189,7 @@ impl RoomManager {
 
         let next_player_id = room.pass_turn(&player_id)?;
 
-        // Send turn pass event to game loop
-        if let Some(sender) = self.game_loops.get(&room_id) {
-            let _ = sender.try_send(GameEvent::TurnPass {
-                player_id: player_id.clone(),
-            });
-        }
-
         Ok(next_player_id)
-    }
-
-    fn start_game_loop(&mut self, room_id: &str, turn_order: &TurnOrder) -> AppResult<()> {
-        let (sender, receiver) = mpsc::channel(32);
-
-        self.game_loops.insert(room_id.to_string(), sender);
-
-        let mut game_loop = GameLoop::new();
-        let turn_order_clone = turn_order.clone();
-
-        tokio::spawn(async move {
-            let result = game_loop.run(turn_order_clone, receiver).await;
-            println!("Game loop finished with result: {:?}", result);
-        });
-
-        Ok(())
-    }
-
-    pub fn send_game_event(&self, room_id: &str, event: GameEvent) -> AppResult<()> {
-        if let Some(sender) = self.game_loops.get(room_id) {
-            sender
-                .try_send(event)
-                .map_err(|err| AppError::GameEventSendFailed {
-                    reason: err.to_string(),
-                })?;
-            Ok(())
-        } else {
-            Err(AppError::GameLoopNotFound {
-                room_id: room_id.to_string(),
-            })
-        }
     }
 
     pub fn get_room_mut(&mut self, room_id: &str) -> Option<&mut RoomActor> {

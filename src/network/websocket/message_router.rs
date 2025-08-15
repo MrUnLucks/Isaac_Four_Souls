@@ -2,6 +2,8 @@ use std::sync::Arc;
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Mutex};
 
+use crate::game::game_loop::GameEvent;
+use crate::game::turn_order::TurnOrder;
 use crate::network::lobby::LobbyState;
 use crate::network::messages::{
     deserialize_message, serialize_response, ClientMessage, ServerResponse,
@@ -114,6 +116,7 @@ pub fn handle_message(
                     })?;
                 }
                 Ok(room_id) => {
+                    state.game_engine.cleanup_game_loop(&room_id);
                     cmd_sender.send(ConnectionCommand::SendToAll {
                         message: serialize_response(ServerResponse::RoomDestroyed { room_id }),
                     })?;
@@ -175,6 +178,7 @@ pub fn handle_message(
                         })?;
                     }
                     Ok(player_name) => {
+                        state.game_engine.cleanup_game_loop(&room_id);
                         cmd_sender.send(ConnectionCommand::SendToRoom {
                             room_id,
                             message: serialize_response(ServerResponse::PlayerLeft { player_name }),
@@ -206,51 +210,78 @@ pub fn handle_message(
                 Ok(player_id) => {
                     let ready_result = state.room_manager.ready_player(&player_id);
                     match ready_result {
-                        Err(app_error) => {
-                            cmd_sender.send(ConnectionCommand::SendToPlayer {
-                                connection_id,
-                                message: serialize_response(ServerResponse::from_app_error(
-                                    &app_error,
-                                )),
-                            })?;
-                        }
                         Ok(ready_player_result) => {
                             if ready_player_result.game_started {
+                                if let Some(turn_order_vec) = &ready_player_result.turn_order {
+                                    let turn_order = TurnOrder::new(turn_order_vec.clone());
+                                    if let Err(e) =
+                                        state.game_engine.start_game_loop(&room_id, &turn_order)
+                                    {
+                                        eprintln!("Failed to start game loop: {}", e);
+                                    }
+                                }
+
                                 cmd_sender.send(ConnectionCommand::SendToRoom {
-                                    room_id: room_id.clone(), //Check on readyplayer, safe to call
+                                    room_id: room_id.clone(),
                                     message: serialize_response(ServerResponse::GameStarted {
-                                        room_id: room_id.clone(), //Check on readyplayer, safe to call
-                                        turn_order: ready_player_result.turn_order.unwrap(), //Check on readyplayer, safe to call
+                                        room_id: room_id.clone(),
+                                        turn_order: ready_player_result.turn_order.unwrap(),
                                     }),
                                 })?;
                             } else {
-                                cmd_sender.send(ConnectionCommand::SendToPlayer {
-                                    connection_id,
+                                cmd_sender.send(ConnectionCommand::SendToRoom {
+                                    room_id: room_id.clone(),
                                     message: serialize_response(ServerResponse::PlayersReady {
                                         players_ready: ready_player_result.players_ready,
                                     }),
-                                })?
-                            };
+                                })?;
+                            }
                         }
-                    };
+                        Err(app_error) => cmd_sender.send(ConnectionCommand::SendToPlayer {
+                            connection_id,
+                            message: serialize_response(ServerResponse::from_app_error(&app_error)),
+                        })?,
+                    }
                 }
             }
         }
         ClientMessage::TurnPass => {
             let pass_turn_result = state.room_manager.pass_turn(&connection_id);
             match pass_turn_result {
-                Err(app_error) => {
-                    cmd_sender.send(ConnectionCommand::SendToPlayer {
-                        connection_id,
-                        message: serialize_response(ServerResponse::from_app_error(&app_error)),
-                    })?;
-                }
                 Ok(next_player_id) => {
+                    let player_id = match state
+                        .room_manager
+                        .get_player_id_from_connection_id(&connection_id)
+                    {
+                        Ok(id) => id,
+                        Err(app_error) => {
+                            cmd_sender.send(ConnectionCommand::SendToPlayer {
+                                connection_id: connection_id.clone(),
+                                message: serialize_response(ServerResponse::from_app_error(
+                                    &app_error,
+                                )),
+                            })?;
+                            return Ok(());
+                        }
+                    };
+                    if let Some(room_id) = state
+                        .room_manager
+                        .get_player_room_from_connection_id(&connection_id)
+                    {
+                        let _ = state
+                            .game_engine
+                            .send_game_event(&room_id, GameEvent::TurnPass { player_id });
+                    }
+
                     cmd_sender.send(ConnectionCommand::SendToRoom {
-                        room_id: room_id.unwrap(), //Check on turn_pass, safe to call
+                        room_id: room_id.unwrap(),
                         message: serialize_response(ServerResponse::TurnChange { next_player_id }),
                     })?;
                 }
+                Err(app_error) => cmd_sender.send(ConnectionCommand::SendToPlayer {
+                    connection_id,
+                    message: serialize_response(ServerResponse::from_app_error(&app_error)),
+                })?,
             }
         }
     };
