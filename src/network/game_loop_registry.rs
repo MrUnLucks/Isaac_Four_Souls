@@ -20,7 +20,6 @@ impl GameLoopRegistry {
         let (sender, receiver) = mpsc::channel(32);
 
         self.game_loops.insert(room_id.to_string(), sender);
-        println!("{:?}", self.game_loops);
 
         let mut game_loop = GameLoop::new();
         let turn_order_clone = turn_order.clone();

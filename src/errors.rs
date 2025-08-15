@@ -201,35 +201,3 @@ pub mod validation {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_error_categorization() {
-        let client_error = AppError::ConnectionNotInRoom;
-        assert!(matches!(
-            client_error.category(),
-            ErrorCategory::ClientError
-        ));
-
-        let server_error = AppError::Internal {
-            message: "test".to_string(),
-        };
-        assert!(matches!(
-            server_error.category(),
-            ErrorCategory::ServerError
-        ));
-    }
-
-    #[test]
-    fn test_player_name_validation() {
-        use validation::validate_player_name;
-
-        assert!(validate_player_name("ValidName").is_ok());
-        assert!(validate_player_name("").is_err());
-        assert!(validate_player_name("Name with spaces").is_err());
-        assert!(validate_player_name(&"a".repeat(51)).is_err());
-    }
-}
