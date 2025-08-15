@@ -1,6 +1,7 @@
 use tokio::sync::mpsc;
 
-use crate::game::{decks::LootDeck, turn_order::TurnOrder};
+use crate::game::decks::LootDeck;
+use crate::TurnOrder;
 
 pub struct GameLoop {
     max_turns: u32,

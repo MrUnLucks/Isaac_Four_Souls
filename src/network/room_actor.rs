@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::{game::turn_order::TurnOrder, AppError, AppResult, Room};
+use crate::{AppError, AppResult, Room, TurnOrder};
 
 pub struct RoomActor {
     room: Room,

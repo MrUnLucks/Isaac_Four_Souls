@@ -3,11 +3,10 @@ use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Mutex};
 
 use crate::game::game_loop::GameEvent;
-use crate::game::turn_order::TurnOrder;
 use crate::network::messages::{
     deserialize_message, serialize_response, ClientMessage, ServerResponse,
 };
-use crate::{AppError, ConnectionCommand, LobbyState};
+use crate::{AppError, ConnectionCommand, LobbyState, TurnOrder};
 
 pub async fn handle_text_message(
     text: String,

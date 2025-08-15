@@ -1,11 +1,8 @@
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
-use crate::game::{
-    game_loop::{GameEvent, GameLoop},
-    turn_order::TurnOrder,
-};
-use crate::{AppError, AppResult};
+use crate::game::game_loop::{GameEvent, GameLoop};
+use crate::{AppError, AppResult, TurnOrder};
 
 /// Handles pure game logic and game loop management
 pub struct GameLoopRegistry {
