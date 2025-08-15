@@ -5,11 +5,7 @@ use tokio::{
 };
 use uuid::Uuid;
 
-use crate::network::lobby::LobbyState;
-use crate::network::websocket::{
-    connection_commands::{CommandProcessor, ConnectionCommand},
-    connection_handler::ConnectionHandler,
-};
+use crate::{CommandProcessor, ConnectionCommand, ConnectionHandler, LobbyState};
 
 pub struct WebsocketServer {
     address: String,

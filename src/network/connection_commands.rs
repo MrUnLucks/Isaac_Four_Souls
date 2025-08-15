@@ -36,7 +36,7 @@ pub struct CommandProcessor;
 impl CommandProcessor {
     pub async fn process_command(
         command: ConnectionCommand,
-        state: &mut crate::network::lobby::LobbyState,
+        state: &mut crate::LobbyState,
     ) -> Result<(), Box<dyn Error>> {
         match command {
             ConnectionCommand::AddConnection { id, sender } => {

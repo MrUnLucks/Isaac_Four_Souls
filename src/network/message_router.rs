@@ -4,12 +4,10 @@ use tokio::sync::{mpsc, Mutex};
 
 use crate::game::game_loop::GameEvent;
 use crate::game::turn_order::TurnOrder;
-use crate::network::lobby::LobbyState;
 use crate::network::messages::{
     deserialize_message, serialize_response, ClientMessage, ServerResponse,
 };
-use crate::network::websocket::connection_commands::ConnectionCommand;
-use crate::AppError;
+use crate::{AppError, ConnectionCommand, LobbyState};
 
 pub async fn handle_text_message(
     text: String,

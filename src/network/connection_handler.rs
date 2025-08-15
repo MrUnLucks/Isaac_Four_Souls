@@ -5,10 +5,8 @@ use tokio::net::TcpStream;
 use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
-use crate::network::lobby::LobbyState;
 use crate::network::messages::{serialize_response, ServerResponse};
-use crate::network::websocket::connection_commands::ConnectionCommand;
-use crate::network::websocket::message_router::handle_text_message;
+use crate::{handle_text_message, ConnectionCommand, LobbyState};
 
 pub struct ConnectionHandler;
 

@@ -1,5 +1,5 @@
 use isaac_four_souls::game::card_loader;
-use isaac_four_souls::network::websocket::WebsocketServer;
+use isaac_four_souls::WebsocketServer;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
