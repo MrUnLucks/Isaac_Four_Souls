@@ -62,6 +62,9 @@ pub enum AppError {
     #[error("Unknown message: {message}")]
     UnknownMessage { message: String },
 
+    #[error("Game error: {message}")]
+    GameError { message: String },
+
     #[error("Internal server error: {message}")]
     Internal { message: String },
 }
@@ -73,6 +76,7 @@ pub enum ErrorCategory {
     ClientError,
     ServerError,
     ValidationError,
+    GameError,
 }
 
 impl AppError {
@@ -81,8 +85,7 @@ impl AppError {
             AppError::RoomNotFound { .. }
             | AppError::PlayerAlreadyInRoom { .. }
             | AppError::RoomFull { .. }
-            | AppError::RoomInGame { .. }
-            | AppError::PlayersNotReady { .. } => ErrorCategory::ClientError,
+            | AppError::RoomInGame { .. } => ErrorCategory::ClientError,
 
             AppError::InvalidPlayerName { .. }
             | AppError::InvalidRoomName { .. }
@@ -99,6 +102,10 @@ impl AppError {
             AppError::ConnectionNotInRoom { .. }
             | AppError::TurnOrderNotInitialized
             | AppError::UnknownMessage { .. } => ErrorCategory::ClientError,
+
+            AppError::PlayersNotReady { .. } | AppError::GameError { .. } => {
+                ErrorCategory::GameError
+            }
         }
     }
 
@@ -108,6 +115,7 @@ impl AppError {
 
     pub fn status_code(&self) -> u16 {
         match self.category() {
+            ErrorCategory::GameError => 200,
             ErrorCategory::ClientError => 400,
             ErrorCategory::ValidationError => 422,
             ErrorCategory::ServerError => 500,
@@ -134,6 +142,7 @@ impl AppError {
             AppError::WebSocketError { .. } => "WebSocketError",
             AppError::UnknownMessage { .. } => "UnknownMessage",
             AppError::Internal { .. } => "Internal",
+            AppError::GameError { .. } => "GameError",
         }
     }
 

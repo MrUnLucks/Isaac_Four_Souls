@@ -79,7 +79,7 @@ impl OutboundEventHandler {
                 ServerResponse::TurnChange { next_player_id }
             }
             GameOutboundEvent::GameError { error } => {
-                ServerResponse::from_app_error(&AppError::Internal {
+                ServerResponse::from_app_error(&AppError::GameError {
                     message: format!("Game error: {:?}", error),
                 })
             }
