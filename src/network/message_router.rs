@@ -27,7 +27,7 @@ pub async fn handle_text_message(
                         },
                     )),
                 })
-                .unwrap();
+                .expect("Send error on deserialization message, panicking...");
 
             return;
         }
