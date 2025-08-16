@@ -3,11 +3,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error, Serialize)]
 pub enum AppError {
-    #[error("Player '{player_name}' is already in room '{room_id}'")]
-    PlayerAlreadyInRoom {
-        player_name: String,
-        room_id: String,
-    },
+    #[error("Player '{player_name}' is already in a room")]
+    PlayerAlreadyInRoom { player_name: String },
 
     #[error("Connection is not in any room")]
     ConnectionNotInRoom,

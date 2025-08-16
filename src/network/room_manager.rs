@@ -43,7 +43,9 @@ impl RoomManager {
             .connection_to_room_info
             .contains_key(&first_player_connection_id)
         {
-            return Err(AppError::ConnectionNotInRoom);
+            return Err(AppError::PlayerAlreadyInRoom {
+                player_name: first_player_name,
+            });
         }
 
         let mut room = Room::new(room_name);
@@ -72,7 +74,7 @@ impl RoomManager {
         player_name: String,
     ) -> AppResult<String> {
         if self.connection_to_room_info.contains_key(&connection_id) {
-            return Err(AppError::ConnectionNotInRoom);
+            return Err(AppError::PlayerAlreadyInRoom { player_name });
         }
 
         let room = self.rooms.get_mut(room_id).ok_or(AppError::RoomNotFound {
