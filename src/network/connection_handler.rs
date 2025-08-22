@@ -5,8 +5,11 @@ use tokio::net::TcpStream;
 use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
-use crate::network::messages::{serialize_response, ServerResponse};
-use crate::{handle_text_message, ConnectionCommand, LobbyState};
+use crate::network::message_router::handle_game_message;
+use crate::network::messages::{
+    deserialize_message, serialize_response, ClientMessageCategory, ServerResponse,
+};
+use crate::{handle_lobby_message, ConnectionCommand, GameLoopRegistry, RoomManager};
 
 pub struct ConnectionHandler;
 
@@ -14,8 +17,9 @@ impl ConnectionHandler {
     pub async fn handle_connection(
         stream: TcpStream,
         connection_id: String,
-        lobby_state: Arc<Mutex<LobbyState>>,
+        room_manager: Arc<Mutex<RoomManager>>,
         cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
+        game_registry: &GameLoopRegistry,
     ) -> Result<(), Box<dyn Error>> {
         let ws_stream = accept_async(stream).await?;
         println!("✅ WebSocket connection {} established", connection_id);
@@ -39,7 +43,39 @@ impl ConnectionHandler {
         while let Some(msg) = ws_receiver.next().await {
             match msg? {
                 Message::Text(text) => {
-                    handle_text_message(text, &connection_id, &lobby_state, &cmd_sender).await
+                    // Filter the 2 different messages: Game and Lobby
+                    let client_message = match deserialize_message(&text) {
+                        Ok(msg) => msg,
+                        Err(_) => {
+                            cmd_sender.send(ConnectionCommand::SendToPlayer {
+                                connection_id: connection_id.to_string(),
+                                message: serialize_response(ServerResponse::from_app_error(
+                                    &crate::AppError::SerializationError {
+                                        message: "Deserialization error".to_string(),
+                                    },
+                                )),
+                            })?;
+                            continue;
+                        }
+                    };
+                    match client_message.category() {
+                        ClientMessageCategory::LobbyMessage => {
+                            handle_lobby_message(
+                                client_message,
+                                &connection_id,
+                                &room_manager,
+                                &cmd_sender,
+                            )
+                            .await
+                        }
+
+                        ClientMessageCategory::GameMessage => handle_game_message(
+                            client_message,
+                            &connection_id,
+                            game_registry,
+                            &cmd_sender,
+                        ),
+                    }
                 }
                 _ => {
                     // Handle other message types

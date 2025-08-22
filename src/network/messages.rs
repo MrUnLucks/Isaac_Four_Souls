@@ -4,6 +4,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::AppError;
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClientMessageCategory {
+    LobbyMessage,
+    GameMessage,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ClientMessage {
     Ping,
@@ -24,6 +30,22 @@ pub enum ClientMessage {
     LeaveRoom,
     PlayerReady,
     TurnPass,
+}
+
+impl ClientMessage {
+    pub fn category(&self) -> ClientMessageCategory {
+        match self {
+            ClientMessage::Ping
+            | ClientMessage::Chat { .. }
+            | ClientMessage::CreateRoom { .. }
+            | ClientMessage::DestroyRoom { .. }
+            | ClientMessage::JoinRoom { .. }
+            | ClientMessage::LeaveRoom
+            | ClientMessage::PlayerReady => ClientMessageCategory::LobbyMessage,
+
+            ClientMessage::TurnPass => ClientMessageCategory::GameMessage,
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]

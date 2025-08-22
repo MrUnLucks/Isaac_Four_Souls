@@ -198,8 +198,30 @@ impl RoomManager {
             .map(|player| player.player_name.clone())
     }
 
-    pub fn get_connections_id_from_room_id(&self, room_id: &str) -> Option<HashSet<String>> {
-        self.rooms_connections_map.get(room_id).cloned()
+    pub fn get_connections_id_from_room_id(&self, room_id: &str) -> AppResult<Vec<String>> {
+        self.rooms_connections_map
+            .get(room_id)
+            .ok_or_else(|| AppError::RoomNotFound {
+                room_id: room_id.to_string(),
+            })
+            .map(|connections| connections.iter().cloned().collect())
+    }
+
+    pub fn get_connections_id_from_room_id_except_player(
+        &self,
+        room_id: &str,
+        connection_id: &str,
+    ) -> AppResult<Vec<String>> {
+        self.rooms_connections_map
+            .get(room_id)
+            .ok_or_else(|| AppError::ConnectionNotInRoom)
+            .map(|connections| {
+                connections
+                    .iter()
+                    .filter(|&conn| conn != connection_id)
+                    .cloned()
+                    .collect()
+            })
     }
 
     pub fn get_player_list(&self, room_id: &str) -> Option<Vec<String>> {

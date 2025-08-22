@@ -5,7 +5,10 @@ use tokio::{
 };
 use uuid::Uuid;
 
-use crate::{CommandProcessor, ConnectionCommand, ConnectionHandler, LobbyState};
+use crate::{
+    CommandProcessor, ConnectionCommand, ConnectionHandler, ConnectionManager, GameLoopRegistry,
+    RoomManager,
+};
 
 pub struct WebsocketServer {
     address: String,
@@ -20,39 +23,40 @@ impl WebsocketServer {
 
     pub async fn run(&self) -> Result<(), Box<dyn Error>> {
         let listener = TcpListener::bind(&self.address).await?;
-        let lobby_state = Arc::new(Mutex::new(LobbyState::new()));
+        let room_manager = Arc::new(Mutex::new(RoomManager::new()));
+        let mut connection_manager = ConnectionManager::new();
 
         // Create channel for connection management commands
         let (cmd_sender, mut cmd_receiver) = mpsc::unbounded_channel::<ConnectionCommand>();
 
-        // Spawn connection manager task
-        let lobby_state_clone = lobby_state.clone();
         tokio::spawn(async move {
             while let Some(command) = cmd_receiver.recv().await {
-                let mut state = lobby_state_clone.lock().await;
                 // Maybe better implementation needed
                 let processed_command =
-                    CommandProcessor::process_command(command, &mut state).await;
+                    CommandProcessor::process_command(command, &mut connection_manager).await;
                 if processed_command.is_err() {
                     return;
                 }
             }
         });
 
+        let game_loop_registry = GameLoopRegistry::new();
+
         // Accept connections
         while let Ok((stream, addr)) = listener.accept().await {
             println!("🔗 New connection from: {}", addr);
             let connection_id = Uuid::new_v4().to_string();
 
-            let lobby_state = lobby_state.clone();
+            let room_manager = room_manager.clone();
             let cmd_sender = cmd_sender.clone();
 
             tokio::spawn(async move {
                 if let Err(e) = ConnectionHandler::handle_connection(
                     stream,
                     connection_id,
-                    lobby_state,
+                    room_manager,
                     cmd_sender,
+                    &game_loop_registry,
                 )
                 .await
                 {
