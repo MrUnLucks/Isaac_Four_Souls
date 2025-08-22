@@ -39,6 +39,7 @@ pub async fn handle_lobby_message(
     connection_id: &str,
     room_manager: &Arc<Mutex<RoomManager>>,
     cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
+    game_registry: &Arc<GameLoopRegistry>,
 ) {
     let mut room_manager_lock = room_manager.lock().await;
     let room_id = room_manager_lock.get_player_room_from_connection_id(connection_id);
@@ -50,6 +51,7 @@ pub async fn handle_lobby_message(
         connection_id.clone(),
         cmd_sender,
         &mut room_manager_lock,
+        game_registry,
     ) {
         Ok(()) => {}
         Err(MessageRouterError::App(app_error)) => {
@@ -72,6 +74,7 @@ pub fn route_lobby_message(
     connection_id: String,
     cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
     room_manager: &mut RoomManager,
+    game_registry: &Arc<GameLoopRegistry>,
 ) -> Result<(), MessageRouterError> {
     match client_message {
         ClientMessage::Ping => {
@@ -170,47 +173,43 @@ pub fn route_lobby_message(
         }
 
         ClientMessage::PlayerReady => {
-            // let room_id = room_id.ok_or(AppError::ConnectionNotInRoom)?;
-            // let player_id = state
-            //     .room_manager
-            //     .get_player_id_from_connection_id(&connection_id)?;
+            let room_id = room_id.ok_or(AppError::ConnectionNotInRoom)?;
+            let player_id = room_manager.get_player_id_from_connection_id(&connection_id)?;
 
-            // let ready_result = state.room_manager.ready_player(&player_id)?;
+            let ready_result = room_manager.ready_player(&player_id)?;
 
-            // if ready_result.game_started {
-            //     let players_id =
-            //         state
-            //             .room_manager
-            //             .get_player_list(&room_id)
-            //             .ok_or(AppError::RoomNotFound {
-            //                 room_id: room_id.clone(),
-            //             })?;
+            if ready_result.game_started {
+                let players_mapping = room_manager.get_players_mapping(&room_id)?;
 
-            //     let (turn_order, outbound_receiver) = state
-            //         .game_loop_registry
-            //         .start_game_loop(&room_id, players_id)?;
+                let turn_order =
+                    game_registry.start_game_loop(&room_id, players_mapping, cmd_sender.clone())?;
 
-            //     cmd_sender.send(ConnectionCommand::SendToRoom {
-            //         room_id: room_id.clone(),
-            //         message: serialize_response(ServerResponse::RoomGameStart {
-            //             turn_order: turn_order.order,
-            //         }),
-            //     })?;
+                let connections_id = room_manager.get_connections_id_from_room_id(&room_id)?;
 
-            //     cmd_sender.send(ConnectionCommand::SendToAll {
-            //         message: serialize_response(ServerResponse::LobbyStartedGame {
-            //             room_id: room_id.clone(),
-            //         }),
-            //     })?;
+                cmd_sender.send(ConnectionCommand::SendToPlayers {
+                    connections_id: connections_id.clone(),
+                    message: serialize_response(ServerResponse::RoomGameStart {
+                        turn_order: turn_order.order,
+                    }),
+                })?;
 
-            //     spawn_outbound_handler(room_id, outbound_receiver, cmd_sender.clone());
-            // } else {
-            //     cmd_sender.send(ConnectionCommand::SendToAll {
-            //         message: serialize_response(ServerResponse::PlayersReady {
-            //             players_ready: ready_result.players_ready,
-            //         }),
-            //     })?;
-            // }
+                cmd_sender.send(ConnectionCommand::SendToAll {
+                    message: serialize_response(ServerResponse::LobbyStartedGame {
+                        room_id: room_id.clone(),
+                    }),
+                })?;
+
+                if let Some(room) = room_manager.get_room_mut(&room_id) {
+                    room.set_state_in_game();
+                }
+            } else {
+                // Not all players ready yet
+                cmd_sender.send(ConnectionCommand::SendToAll {
+                    message: serialize_response(ServerResponse::PlayersReady {
+                        players_ready: ready_result.players_ready,
+                    }),
+                })?;
+            }
         }
 
         _ => {

@@ -19,7 +19,7 @@ impl ConnectionHandler {
         connection_id: String,
         room_manager: Arc<Mutex<RoomManager>>,
         cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
-        game_registry: Arc<GameLoopRegistry>, // NO MUTEX! Just Arc
+        game_registry: Arc<GameLoopRegistry>,
     ) -> Result<(), Box<dyn Error>> {
         let ws_stream = accept_async(stream).await?;
         println!("✅ WebSocket connection {} established", connection_id);
@@ -66,6 +66,7 @@ impl ConnectionHandler {
                                 &connection_id,
                                 &room_manager,
                                 &cmd_sender,
+                                &game_registry,
                             )
                             .await
                         }
@@ -73,7 +74,7 @@ impl ConnectionHandler {
                         ClientMessageCategory::GameMessage => handle_game_message(
                             client_message,
                             &connection_id,
-                            &game_registry, // Pass Arc<GameLoopRegistry> directly - NO LOCKS!
+                            &game_registry,
                             &cmd_sender,
                         ),
                     }

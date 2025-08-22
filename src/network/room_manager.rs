@@ -167,6 +167,24 @@ impl RoomManager {
         })
     }
 
+    pub fn get_players_mapping(&self, room_id: &str) -> AppResult<HashMap<String, String>> {
+        let mut players_mapping = HashMap::new();
+
+        for (connection_id, player_info) in &self.connection_to_room_info {
+            if player_info.room_id == *room_id {
+                players_mapping.insert(player_info.room_player_id.clone(), connection_id.clone());
+            }
+        }
+
+        if players_mapping.is_empty() {
+            Err(AppError::RoomNotFound {
+                room_id: room_id.to_string(),
+            })
+        } else {
+            Ok(players_mapping)
+        }
+    }
+
     pub fn get_room_mut(&mut self, room_id: &str) -> Option<&mut Room> {
         self.rooms.get_mut(room_id)
     }

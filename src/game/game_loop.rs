@@ -83,7 +83,7 @@ impl GameLoop {
                             connection_id: player_connection_id,
                             message: serialize_response(ServerResponse::from_app_error(
                                 &crate::AppError::GameError {
-                                    message: "undefined".to_string(),
+                                    message: "Not your turn: to be handled".to_string(),
                                 },
                             )),
                         });
