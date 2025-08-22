@@ -225,13 +225,12 @@ pub fn route_lobby_message(
 pub fn handle_game_message(
     client_message: ClientMessage,
     connection_id: &str,
-    game_registry: &GameLoopRegistry,
+    game_registry: &Arc<GameLoopRegistry>,
     cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
 ) {
-    match route_game_message(client_message, connection_id.clone(), game_registry) {
+    match route_game_message(client_message, connection_id, game_registry) {
         Ok(()) => {}
         Err(MessageRouterError::App(app_error)) => {
-            // Send the app error to the client
             let _ = send_error(cmd_sender, &connection_id, &app_error);
         }
         Err(MessageRouterError::Send(_)) => {
@@ -251,8 +250,8 @@ pub fn route_game_message(
 ) -> Result<(), MessageRouterError> {
     match client_message {
         ClientMessage::TurnPass => {
-            // Find which game this player is in and route the message
             let (_, player_id) = game_registry.get_player_info_from_connection_id(connection_id)?;
+
             game_registry.send_game_event_to_room_by_connection_id(
                 connection_id,
                 crate::game::game_loop::GameEvent::TurnPass { player_id },

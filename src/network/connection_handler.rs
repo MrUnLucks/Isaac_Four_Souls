@@ -19,7 +19,7 @@ impl ConnectionHandler {
         connection_id: String,
         room_manager: Arc<Mutex<RoomManager>>,
         cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
-        game_registry: &GameLoopRegistry,
+        game_registry: Arc<GameLoopRegistry>, // NO MUTEX! Just Arc
     ) -> Result<(), Box<dyn Error>> {
         let ws_stream = accept_async(stream).await?;
         println!("✅ WebSocket connection {} established", connection_id);
@@ -58,6 +58,7 @@ impl ConnectionHandler {
                             continue;
                         }
                     };
+
                     match client_message.category() {
                         ClientMessageCategory::LobbyMessage => {
                             handle_lobby_message(
@@ -72,7 +73,7 @@ impl ConnectionHandler {
                         ClientMessageCategory::GameMessage => handle_game_message(
                             client_message,
                             &connection_id,
-                            game_registry,
+                            &game_registry, // Pass Arc<GameLoopRegistry> directly - NO LOCKS!
                             &cmd_sender,
                         ),
                     }
@@ -87,6 +88,8 @@ impl ConnectionHandler {
         cmd_sender.send(ConnectionCommand::RemoveConnection {
             id: connection_id.clone(),
         })?;
+
+        game_registry.remove_player(&connection_id);
 
         println!("📴 Connection {} closed", connection_id);
         Ok(())

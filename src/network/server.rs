@@ -31,7 +31,6 @@ impl WebsocketServer {
 
         tokio::spawn(async move {
             while let Some(command) = cmd_receiver.recv().await {
-                // Maybe better implementation needed
                 let processed_command =
                     CommandProcessor::process_command(command, &mut connection_manager).await;
                 if processed_command.is_err() {
@@ -40,7 +39,7 @@ impl WebsocketServer {
             }
         });
 
-        let game_loop_registry = GameLoopRegistry::new();
+        let game_loop_registry = Arc::new(GameLoopRegistry::new());
 
         // Accept connections
         while let Ok((stream, addr)) = listener.accept().await {
@@ -49,6 +48,7 @@ impl WebsocketServer {
 
             let room_manager = room_manager.clone();
             let cmd_sender = cmd_sender.clone();
+            let game_registry = game_loop_registry.clone();
 
             tokio::spawn(async move {
                 if let Err(e) = ConnectionHandler::handle_connection(
@@ -56,7 +56,7 @@ impl WebsocketServer {
                     connection_id,
                     room_manager,
                     cmd_sender,
-                    &game_loop_registry,
+                    game_registry,
                 )
                 .await
                 {
