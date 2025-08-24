@@ -9,7 +9,7 @@ use crate::network::message_router::handle_game_message;
 use crate::network::messages::{
     deserialize_message, serialize_response, ClientMessageCategory, ServerResponse,
 };
-use crate::{handle_lobby_message, ConnectionCommand, GameLoopRegistry, RoomManager};
+use crate::{handle_lobby_message, AppError, ConnectionCommand, GameLoopRegistry, RoomManager};
 
 pub struct ConnectionHandler;
 
@@ -41,46 +41,37 @@ impl ConnectionHandler {
         })?;
 
         while let Some(msg) = ws_receiver.next().await {
-            match msg? {
-                Message::Text(text) => {
-                    // Filter the 2 different messages: Game and Lobby
-                    let client_message = match deserialize_message(&text) {
-                        Ok(msg) => msg,
-                        Err(_) => {
-                            cmd_sender.send(ConnectionCommand::SendToPlayer {
-                                connection_id: connection_id.to_string(),
-                                message: serialize_response(ServerResponse::from_app_error(
-                                    &crate::AppError::SerializationError {
-                                        message: "Deserialization error".to_string(),
-                                    },
-                                )),
-                            })?;
-                            continue;
-                        }
-                    };
-
-                    match client_message.category() {
-                        ClientMessageCategory::LobbyMessage => {
-                            handle_lobby_message(
-                                client_message,
-                                &connection_id,
-                                &room_manager,
-                                &cmd_sender,
-                                &game_registry,
-                            )
-                            .await
-                        }
-
-                        ClientMessageCategory::GameMessage => handle_game_message(
-                            client_message,
-                            &connection_id,
-                            &game_registry,
-                            &cmd_sender,
-                        ),
+            match msg {
+                Ok(Message::Text(text)) => {
+                    if let Err(e) = process_message_safely(
+                        text,
+                        &connection_id,
+                        &room_manager,
+                        &cmd_sender,
+                        &game_registry,
+                    )
+                    .await
+                    {
+                        eprintln!(
+                            "⚠️ Message error from {}: {} (continuing...)",
+                            connection_id, e
+                        );
+                        // Send error but keep connection alive
+                        let _ = cmd_sender.send(ConnectionCommand::SendToPlayer {
+                            connection_id: connection_id.clone(),
+                            message: serialize_response(ServerResponse::from_app_error(
+                                &AppError::UnknownMessage {
+                                    message: "Message failed to process".to_string(),
+                                },
+                            )),
+                        });
                     }
                 }
-                _ => {
-                    // Handle other message types
+                Ok(Message::Close(_)) => break,
+                Ok(_) => continue, // Ignore other message types
+                Err(e) => {
+                    eprintln!("WebSocket error {}: {}", connection_id, e);
+                    break; // Only break on WebSocket errors
                 }
             }
         }
@@ -95,4 +86,31 @@ impl ConnectionHandler {
         println!("📴 Connection {} closed", connection_id);
         Ok(())
     }
+}
+
+async fn process_message_safely(
+    text: String,
+    connection_id: &str,
+    room_manager: &Arc<Mutex<RoomManager>>,
+    cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
+    game_registry: &Arc<GameLoopRegistry>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let client_message = deserialize_message(&text).map_err(|e| format!("Parse error: {}", e))?;
+
+    match client_message.category() {
+        ClientMessageCategory::LobbyMessage => {
+            handle_lobby_message(
+                client_message,
+                connection_id,
+                room_manager,
+                cmd_sender,
+                game_registry,
+            )
+            .await;
+        }
+        ClientMessageCategory::GameMessage => {
+            handle_game_message(client_message, connection_id, game_registry, cmd_sender);
+        }
+    }
+    Ok(())
 }
