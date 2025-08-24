@@ -82,9 +82,7 @@ impl GameLoop {
                         let _ = cmd_sender.send(ConnectionCommand::SendToPlayer {
                             connection_id: player_connection_id,
                             message: serialize_response(ServerResponse::from_app_error(
-                                &crate::AppError::GameError {
-                                    message: "Not your turn: to be handled".to_string(),
-                                },
+                                &crate::AppError::NotPlayerTurn,
                             )),
                         });
                     }

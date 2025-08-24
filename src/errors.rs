@@ -62,8 +62,11 @@ pub enum AppError {
     #[error("Unknown message: {message}")]
     UnknownMessage { message: String },
 
-    #[error("Game error: {message}")]
-    GameError { message: String },
+    #[error("Game ended unexpectedly")]
+    GameEndedUnexpectedly,
+
+    #[error("Not player's turn")]
+    NotPlayerTurn,
 
     #[error("Internal server error: {message}")]
     Internal { message: String },
@@ -85,7 +88,10 @@ impl AppError {
             AppError::RoomNotFound { .. }
             | AppError::PlayerAlreadyInRoom { .. }
             | AppError::RoomFull { .. }
-            | AppError::RoomInGame { .. } => ErrorCategory::ClientError,
+            | AppError::RoomInGame { .. }
+            | AppError::ConnectionNotInRoom { .. }
+            | AppError::TurnOrderNotInitialized
+            | AppError::UnknownMessage { .. } => ErrorCategory::ClientError,
 
             AppError::InvalidPlayerName { .. }
             | AppError::InvalidRoomName { .. }
@@ -99,13 +105,9 @@ impl AppError {
             | AppError::WebSocketError { .. }
             | AppError::Internal { .. } => ErrorCategory::ServerError,
 
-            AppError::ConnectionNotInRoom { .. }
-            | AppError::TurnOrderNotInitialized
-            | AppError::UnknownMessage { .. } => ErrorCategory::ClientError,
-
-            AppError::PlayersNotReady { .. } | AppError::GameError { .. } => {
-                ErrorCategory::GameError
-            }
+            AppError::PlayersNotReady { .. }
+            | AppError::NotPlayerTurn
+            | AppError::GameEndedUnexpectedly => ErrorCategory::GameError,
         }
     }
 
@@ -139,10 +141,11 @@ impl AppError {
             AppError::InvalidPlayerName { .. } => "InvalidPlayerName",
             AppError::InvalidRoomName { .. } => "InvalidRoomName",
             AppError::SerializationError { .. } => "SerializationError",
+            AppError::NotPlayerTurn => "NotPlayerTurn",
+            AppError::GameEndedUnexpectedly => "GameEndedUnexpectedly",
             AppError::WebSocketError { .. } => "WebSocketError",
             AppError::UnknownMessage { .. } => "UnknownMessage",
             AppError::Internal { .. } => "Internal",
-            AppError::GameError { .. } => "GameError",
         }
     }
 
