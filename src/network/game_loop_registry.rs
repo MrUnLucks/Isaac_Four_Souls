@@ -8,7 +8,7 @@ use crate::{AppError, AppResult, ConnectionCommand, TurnOrder};
 
 pub struct GameLoopRegistry {
     // DashMap is lock-free - no Arc<Mutex<>> needed!
-    game_loops: DashMap<String, mpsc::Sender<GameEvent>>, // room_id -> game event sender
+    game_loops: DashMap<String, (mpsc::Sender<GameEvent>, tokio::task::JoinHandle<()>)>, // room_id -> game event sender
     connection_ids_to_room_info: DashMap<String, (String, String)>, // conn_id -> (room_id, player_id)
 }
 
@@ -28,7 +28,6 @@ impl GameLoopRegistry {
     ) -> AppResult<TurnOrder> {
         let (inbound_sender, inbound_receiver) = mpsc::channel(32);
 
-        self.game_loops.insert(room_id.to_string(), inbound_sender);
         for (player_id, conn_id) in players_id_to_connection_id.clone() {
             self.connection_ids_to_room_info
                 .insert(conn_id, (room_id.to_string(), player_id));
@@ -37,15 +36,19 @@ impl GameLoopRegistry {
 
         let mut game_loop = GameLoop::new(players_id_to_connection_id, turn_order.clone());
 
-        tokio::spawn(async move {
+        let task_handle = tokio::spawn(async move {
             game_loop.run(inbound_receiver, cmd_sender).await;
         });
+
+        self.game_loops
+            .insert(room_id.to_string(), (inbound_sender, task_handle));
 
         Ok(turn_order)
     }
 
     pub fn send_game_event_to_room(&self, room_id: &str, event: GameEvent) -> AppResult<()> {
-        if let Some(sender) = self.game_loops.get(room_id) {
+        if let Some(entry) = self.game_loops.get(room_id) {
+            let (sender, _) = entry.value();
             sender
                 .try_send(event)
                 .map_err(|err| AppError::GameEventSendFailed {
@@ -67,10 +70,11 @@ impl GameLoopRegistry {
         let (room_id, _) = self
             .connection_ids_to_room_info
             .get(connection_id)
-            .map(|entry| entry.value().clone()) // Clone the value from the DashMap entry
+            .map(|entry| entry.value().clone())
             .ok_or(AppError::ConnectionNotInRoom)?;
 
-        if let Some(sender) = self.game_loops.get(&room_id) {
+        if let Some(entry) = self.game_loops.get(&room_id) {
+            let (sender, _) = entry.value();
             sender
                 .try_send(event)
                 .map_err(|err| AppError::GameEventSendFailed {
@@ -88,12 +92,28 @@ impl GameLoopRegistry {
     ) -> AppResult<(String, String)> {
         self.connection_ids_to_room_info
             .get(connection_id)
-            .map(|entry| entry.value().clone()) // Clone the tuple from DashMap entry
+            .map(|entry| entry.value().clone())
             .ok_or(AppError::ConnectionNotInRoom)
     }
 
     pub fn cleanup_game_loop(&self, room_id: &str) {
-        self.game_loops.remove(room_id);
+        if let Some((_, (sender, task_handle))) = self.game_loops.remove(room_id) {
+            println!("🛑 Stopping game loop for room {}", room_id);
+
+            drop(sender);
+
+            tokio::spawn(async move {
+                tokio::select! {
+                    _ = task_handle => {
+                        println!("✅ Game loop ended gracefully");
+                    }
+                    _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {
+                        println!("⚠️ Game loop took too long to stop");
+                        // Task will be dropped and aborted here
+                    }
+                }
+            });
+        }
 
         self.connection_ids_to_room_info
             .retain(|_, (game_room_id, _)| game_room_id != room_id);
