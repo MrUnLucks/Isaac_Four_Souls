@@ -1,4 +1,6 @@
 use once_cell::sync::Lazy;
+use rand::rng;
+use rand::seq::SliceRandom;
 use std::{collections::HashMap, error::Error, fs};
 
 use serde::{Deserialize, Serialize};
@@ -34,6 +36,8 @@ impl Database {
 
     pub fn create_loot_deck(&self) -> Vec<LootCard> {
         let mut deck = Vec::new();
+        let mut random_generator = rng();
+        deck.shuffle(&mut random_generator);
         for card in self.loot_cards.values() {
             for _ in 0..card.count {
                 deck.push(card.clone());

@@ -43,7 +43,7 @@ impl ConnectionHandler {
         while let Some(msg) = ws_receiver.next().await {
             match msg {
                 Ok(Message::Text(text)) => {
-                    if let Err(e) = process_message_safely(
+                    if let Err(e) = process_message(
                         text,
                         &connection_id,
                         &room_manager,
@@ -88,7 +88,7 @@ impl ConnectionHandler {
     }
 }
 
-async fn process_message_safely(
+async fn process_message(
     text: String,
     connection_id: &str,
     room_manager: &Arc<Mutex<RoomManager>>,
