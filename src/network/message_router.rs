@@ -3,7 +3,7 @@ use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Mutex};
 
 use crate::network::messages::{serialize_response, ClientMessage, ServerResponse};
-use crate::{AppError, ConnectionCommand, GameLoopRegistry, RoomManager};
+use crate::{AppError, ConnectionCommand, GameMessageLoopRegistry, RoomManager};
 
 #[derive(Debug)]
 pub enum MessageRouterError {
@@ -39,7 +39,7 @@ pub async fn handle_lobby_message(
     connection_id: &str,
     room_manager: &Arc<Mutex<RoomManager>>,
     cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-    game_registry: &Arc<GameLoopRegistry>,
+    game_registry: &Arc<GameMessageLoopRegistry>,
 ) {
     let mut room_manager_lock = room_manager.lock().await;
     let room_id = room_manager_lock.get_player_room_from_connection_id(connection_id);
@@ -74,7 +74,7 @@ pub fn route_lobby_message(
     connection_id: String,
     cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
     room_manager: &mut RoomManager,
-    game_registry: &Arc<GameLoopRegistry>,
+    game_registry: &Arc<GameMessageLoopRegistry>,
 ) -> Result<(), MessageRouterError> {
     match client_message {
         ClientMessage::Ping => {
@@ -125,8 +125,8 @@ pub fn route_lobby_message(
             let destroyed_room_id = room_manager.destroy_room(&room_id, &connection_id)?;
 
             // state
-            //     .game_loop_registry
-            //     .cleanup_game_loop(&destroyed_room_id);
+            //     .game_message_loop_registry
+            //     .cleanup_game_message_loop(&destroyed_room_id);
             cmd_sender.send(ConnectionCommand::SendToAll {
                 message: serialize_response(ServerResponse::RoomDestroyed {
                     room_id: destroyed_room_id,
@@ -165,7 +165,7 @@ pub fn route_lobby_message(
             let player_name = room_manager.leave_room(&connection_id)?;
             let connections_id = room_manager.get_connections_id_from_room_id(&room_id)?;
 
-            // state.game_loop_registry.cleanup_game_loop(&room_id);
+            // state.game_message_loop_registry.cleanup_game_message_loop(&room_id);
             cmd_sender.send(ConnectionCommand::SendToPlayers {
                 connections_id,
                 message: serialize_response(ServerResponse::PlayerLeft { player_name }),
@@ -181,8 +181,11 @@ pub fn route_lobby_message(
             if ready_result.game_started {
                 let players_mapping = room_manager.get_players_mapping(&room_id)?;
 
-                let turn_order =
-                    game_registry.start_game_loop(&room_id, players_mapping, cmd_sender.clone())?;
+                let turn_order = game_registry.start_game_message_loop(
+                    &room_id,
+                    players_mapping,
+                    cmd_sender.clone(),
+                )?;
 
                 let connections_id = room_manager.get_connections_id_from_room_id(&room_id)?;
 
@@ -224,7 +227,7 @@ pub fn route_lobby_message(
 pub fn handle_game_message(
     client_message: ClientMessage,
     connection_id: &str,
-    game_registry: &Arc<GameLoopRegistry>,
+    game_registry: &Arc<GameMessageLoopRegistry>,
     cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
 ) {
     match route_game_message(client_message, connection_id, game_registry) {
@@ -245,7 +248,7 @@ pub fn handle_game_message(
 pub fn route_game_message(
     client_message: ClientMessage,
     connection_id: &str,
-    game_registry: &GameLoopRegistry,
+    game_registry: &GameMessageLoopRegistry,
 ) -> Result<(), MessageRouterError> {
     match client_message {
         ClientMessage::TurnPass => {
@@ -253,7 +256,7 @@ pub fn route_game_message(
 
             game_registry.send_game_event_to_room_by_connection_id(
                 connection_id,
-                crate::game::game_loop::GameEvent::TurnPass { player_id },
+                crate::game::game_message_loop::GameEvent::TurnPass { player_id },
             )?
         }
         _ => {

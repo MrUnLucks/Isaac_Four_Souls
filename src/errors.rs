@@ -37,7 +37,7 @@ pub enum AppError {
 
     // Game-related errors
     #[error("Game loop for room '{room_id}' not found")]
-    GameLoopNotFound { room_id: String },
+    GameMessageLoopNotFound { room_id: String },
 
     #[error("Failed to send event to game loop: {reason}")]
     GameEventSendFailed { reason: String },
@@ -99,7 +99,7 @@ impl AppError {
 
             AppError::ConnectionNotFound { .. }
             | AppError::MessageSendFailed { .. }
-            | AppError::GameLoopNotFound { .. }
+            | AppError::GameMessageLoopNotFound { .. }
             | AppError::GameEventSendFailed { .. }
             | AppError::SerializationError { .. }
             | AppError::WebSocketError { .. }
@@ -135,7 +135,7 @@ impl AppError {
             AppError::PlayersNotReady { .. } => "PlayersNotReady",
             AppError::ConnectionNotFound { .. } => "ConnectionNotFound",
             AppError::MessageSendFailed { .. } => "MessageSendFailed",
-            AppError::GameLoopNotFound { .. } => "GameLoopNotFound",
+            AppError::GameMessageLoopNotFound { .. } => "GameMessageLoopNotFound",
             AppError::GameEventSendFailed { .. } => "GameEventSendFailed",
             AppError::TurnOrderNotInitialized => "TurnOrderNotInitialized",
             AppError::InvalidPlayerName { .. } => "InvalidPlayerName",

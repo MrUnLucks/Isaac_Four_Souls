@@ -6,8 +6,8 @@ use tokio::{
 use uuid::Uuid;
 
 use crate::{
-    CommandProcessor, ConnectionCommand, ConnectionHandler, ConnectionManager, GameLoopRegistry,
-    RoomManager,
+    CommandProcessor, ConnectionCommand, ConnectionHandler, ConnectionManager,
+    GameMessageLoopRegistry, RoomManager,
 };
 
 pub struct WebsocketServer {
@@ -39,7 +39,7 @@ impl WebsocketServer {
             }
         });
 
-        let game_loop_registry = Arc::new(GameLoopRegistry::new());
+        let game_message_loop_registry = Arc::new(GameMessageLoopRegistry::new());
 
         // Accept connections
         while let Ok((stream, addr)) = listener.accept().await {
@@ -48,7 +48,7 @@ impl WebsocketServer {
 
             let room_manager = room_manager.clone();
             let cmd_sender = cmd_sender.clone();
-            let game_registry = game_loop_registry.clone();
+            let game_registry = game_message_loop_registry.clone();
 
             tokio::spawn(async move {
                 if let Err(e) = ConnectionHandler::handle_connection(

@@ -3,24 +3,24 @@ use std::collections::HashMap;
 use dashmap::DashMap;
 use tokio::sync::mpsc::{self, UnboundedSender};
 
-use crate::game::game_loop::{GameEvent, GameLoop};
+use crate::game::game_message_loop::{GameEvent, GameMessageLoop};
 use crate::{AppError, AppResult, ConnectionCommand, TurnOrder};
 
-pub struct GameLoopRegistry {
+pub struct GameMessageLoopRegistry {
     // DashMap is lock-free - no Arc<Mutex<>> needed!
-    game_loops: DashMap<String, (mpsc::Sender<GameEvent>, tokio::task::JoinHandle<()>)>, // room_id -> game event sender
+    game_message_loops: DashMap<String, (mpsc::Sender<GameEvent>, tokio::task::JoinHandle<()>)>, // room_id -> game event sender
     connection_ids_to_room_info: DashMap<String, (String, String)>, // conn_id -> (room_id, player_id)
 }
 
-impl GameLoopRegistry {
+impl GameMessageLoopRegistry {
     pub fn new() -> Self {
         Self {
-            game_loops: DashMap::new(),
+            game_message_loops: DashMap::new(),
             connection_ids_to_room_info: DashMap::new(),
         }
     }
 
-    pub fn start_game_loop(
+    pub fn start_game_message_loop(
         &self,
         room_id: &str,
         players_id_to_connection_id: HashMap<String, String>,
@@ -34,20 +34,21 @@ impl GameLoopRegistry {
         }
         let turn_order = TurnOrder::new(players_id_to_connection_id.keys().cloned().collect());
 
-        let mut game_loop = GameLoop::new(players_id_to_connection_id, turn_order.clone());
+        let mut game_message_loop =
+            GameMessageLoop::new(players_id_to_connection_id, turn_order.clone());
 
         let task_handle = tokio::spawn(async move {
-            game_loop.run(inbound_receiver, cmd_sender).await;
+            game_message_loop.run(inbound_receiver, cmd_sender).await;
         });
 
-        self.game_loops
+        self.game_message_loops
             .insert(room_id.to_string(), (inbound_sender, task_handle));
 
         Ok(turn_order)
     }
 
     pub fn send_game_event_to_room(&self, room_id: &str, event: GameEvent) -> AppResult<()> {
-        if let Some(entry) = self.game_loops.get(room_id) {
+        if let Some(entry) = self.game_message_loops.get(room_id) {
             let (sender, _) = entry.value();
             sender
                 .try_send(event)
@@ -56,7 +57,7 @@ impl GameLoopRegistry {
                 })?;
             Ok(())
         } else {
-            Err(AppError::GameLoopNotFound {
+            Err(AppError::GameMessageLoopNotFound {
                 room_id: room_id.to_string(),
             })
         }
@@ -73,7 +74,7 @@ impl GameLoopRegistry {
             .map(|entry| entry.value().clone())
             .ok_or(AppError::ConnectionNotInRoom)?;
 
-        if let Some(entry) = self.game_loops.get(&room_id) {
+        if let Some(entry) = self.game_message_loops.get(&room_id) {
             let (sender, _) = entry.value();
             sender
                 .try_send(event)
@@ -82,7 +83,7 @@ impl GameLoopRegistry {
                 })?;
             Ok(())
         } else {
-            Err(AppError::GameLoopNotFound { room_id })
+            Err(AppError::GameMessageLoopNotFound { room_id })
         }
     }
 
@@ -96,8 +97,8 @@ impl GameLoopRegistry {
             .ok_or(AppError::ConnectionNotInRoom)
     }
 
-    pub fn cleanup_game_loop(&self, room_id: &str) {
-        if let Some((_, (sender, task_handle))) = self.game_loops.remove(room_id) {
+    pub fn cleanup_game_message_loop(&self, room_id: &str) {
+        if let Some((_, (sender, task_handle))) = self.game_message_loops.remove(room_id) {
             println!("🛑 Stopping game loop for room {}", room_id);
 
             drop(sender);
@@ -119,8 +120,8 @@ impl GameLoopRegistry {
             .retain(|_, (game_room_id, _)| game_room_id != room_id);
     }
 
-    pub fn has_game_loop(&self, room_id: &str) -> bool {
-        self.game_loops.contains_key(room_id)
+    pub fn has_game_message_loop(&self, room_id: &str) -> bool {
+        self.game_message_loops.contains_key(room_id)
     }
 
     pub fn remove_player(&self, connection_id: &str) -> Option<(String, String)> {

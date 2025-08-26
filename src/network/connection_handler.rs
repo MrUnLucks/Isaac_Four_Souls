@@ -9,7 +9,9 @@ use crate::network::message_router::handle_game_message;
 use crate::network::messages::{
     deserialize_message, serialize_response, ClientMessageCategory, ServerResponse,
 };
-use crate::{handle_lobby_message, AppError, ConnectionCommand, GameLoopRegistry, RoomManager};
+use crate::{
+    handle_lobby_message, AppError, ConnectionCommand, GameMessageLoopRegistry, RoomManager,
+};
 
 pub struct ConnectionHandler;
 
@@ -19,7 +21,7 @@ impl ConnectionHandler {
         connection_id: String,
         room_manager: Arc<Mutex<RoomManager>>,
         cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
-        game_registry: Arc<GameLoopRegistry>,
+        game_registry: Arc<GameMessageLoopRegistry>,
     ) -> Result<(), Box<dyn Error>> {
         let ws_stream = accept_async(stream).await?;
         println!("✅ WebSocket connection {} established", connection_id);
@@ -93,7 +95,7 @@ async fn process_message(
     connection_id: &str,
     room_manager: &Arc<Mutex<RoomManager>>,
     cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-    game_registry: &Arc<GameLoopRegistry>,
+    game_registry: &Arc<GameMessageLoopRegistry>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let client_message = deserialize_message(&text).map_err(|e| format!("Parse error: {}", e))?;
 

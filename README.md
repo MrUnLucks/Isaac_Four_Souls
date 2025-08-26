@@ -28,7 +28,7 @@ Incoming Message → Message Classification → Route to Handler
 ### Key Components
 
 - **Lobby System**: Room creation, player joining, ready status (uses `Arc<Mutex<RoomManager>>`)
-- **Game Registry**: Active game tracking and message routing (uses `Arc<GameLoopRegistry>` with DashMap)
+- **Game Registry**: Active game tracking and message routing (uses `Arc<GameMessageLoopRegistry>` with DashMap)
 - **Connection Manager**: WebSocket connection lifecycle management
 - **Turn Order**: Randomized turn management with counter tracking
 - **Card System**: Loot deck with shuffle, draw, and discard mechanics
@@ -236,7 +236,7 @@ src/
 ├── game/
 │   ├── card_loader.rs      # Card database loading
 │   ├── decks.rs           # Deck management
-│   ├── game_loop.rs       # Game state machine
+│   ├── game_message_loop.rs       # Game state machine
 │   ├── resources.rs       # Player resources
 │   └── turn_order.rs      # Turn management
 └── network/
@@ -244,7 +244,7 @@ src/
     ├── connection_*.rs    # Connection management
     ├── message_router.rs  # Message routing logic
     ├── room_*.rs         # Room management
-    └── game_loop_registry.rs # Lock-free game registry
+    └── game_message_loop_registry.rs # Lock-free game registry
 ```
 
 ### Adding New Game Messages

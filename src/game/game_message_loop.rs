@@ -6,7 +6,7 @@ use crate::game::card_loader::create_loot_deck;
 use crate::network::messages::{serialize_response, ServerResponse};
 use crate::{ConnectionCommand, TurnOrder};
 
-pub struct GameLoop {
+pub struct GameMessageLoop {
     turn_order: TurnOrder,
     players_id_to_connection_id: HashMap<String, String>,
     room_connections_id: Vec<String>,
@@ -23,7 +23,7 @@ pub enum GameError {
     NotPlayerTurn,
 }
 
-impl GameLoop {
+impl GameMessageLoop {
     pub fn new(
         players_id_to_connection_id: HashMap<String, String>,
         turn_order: TurnOrder,
@@ -31,8 +31,6 @@ impl GameLoop {
         // Create all the loot cards as entities
         let loot_cards = create_loot_deck();
         println!("🃏 Creating {} loot card entities", loot_cards.len());
-
-        for card in loot_cards {}
 
         let room_connections_id = players_id_to_connection_id
             .values()
@@ -58,15 +56,6 @@ impl GameLoop {
                     if self.turn_order.is_player_turn(&player_id) {
                         let next_player = self.turn_order.advance_turn();
                         println!("Turn passed to: {}", next_player);
-
-                        if self.turn_order.get_turn_counter() >= 4 {
-                            let _ = cmd_sender.send(ConnectionCommand::SendToPlayers {
-                                connections_id: self.room_connections_id.clone(),
-                                message: serialize_response(ServerResponse::GameEnded {
-                                    winner_id: player_id,
-                                }),
-                            });
-                        }
 
                         let _ = cmd_sender.send(ConnectionCommand::SendToPlayers {
                             connections_id: self.room_connections_id.clone(),

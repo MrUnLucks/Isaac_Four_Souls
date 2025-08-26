@@ -1,7 +1,7 @@
 pub mod connection_commands;
 pub mod connection_handler;
 pub mod connection_manager;
-pub mod game_loop_registry;
+pub mod game_message_loop_registry;
 pub mod message_router;
 pub mod messages;
 pub mod room;
