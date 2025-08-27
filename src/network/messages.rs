@@ -2,7 +2,10 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{game::cards_types::LootCard, AppError};
+use crate::{
+    game::{cards_types::LootCard, game_message_loop::TurnPhases},
+    AppError,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClientMessageCategory {
@@ -100,7 +103,7 @@ pub enum ServerResponse {
         player_id: String,
     },
     PhaseStart {
-        phase: crate::game::game_message_loop::TurnPhases,
+        phase: TurnPhases,
         priority_player: String,
     },
     GameEnded {
@@ -109,7 +112,17 @@ pub enum ServerResponse {
     BoardStateUpdate {
         hands: HashMap<String, Vec<LootCard>>,
         loot_deck: Vec<LootCard>,
+    },
+    PublicBoardState {
+        hand_sizes: HashMap<String, usize>,
+        loot_deck_size: usize,
         loot_discard: Vec<LootCard>,
+        current_phase: TurnPhases,
+        active_player: String,
+    },
+    PrivateBoardState {
+        player_id: String,
+        hand: Vec<LootCard>, // Only this player's hand
     },
     Error {
         error_type: String, // "RoomFull", "PlayerNotFound" variant_name of errror

@@ -3,7 +3,6 @@ use std::collections::{HashMap, HashSet};
 use tokio::sync::mpsc;
 
 use crate::game::board::Board;
-use crate::game::card_loader::create_loot_deck;
 use crate::network::messages::{serialize_response, ServerResponse};
 use crate::{ConnectionCommand, TurnOrder};
 
@@ -74,14 +73,31 @@ impl GameMessageLoop {
         mut event_receiver: mpsc::Receiver<GameEvent>,
         cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
     ) {
+        let mut player_hands: HashMap<String, usize> = self
+            .board
+            .player_hands
+            .iter()
+            .map(|(player_id, hand)| (player_id.clone(), hand.len()))
+            .collect();
         let _ = cmd_sender.send(ConnectionCommand::SendToPlayers {
             connections_id: self.room_connections_id.clone(),
-            message: serialize_response(ServerResponse::BoardStateUpdate {
-                hands: self.board.player_hands.clone(),
-                loot_deck: self.board.loot_deck.clone(),
+            message: serialize_response(ServerResponse::PublicBoardState {
+                hand_sizes: player_hands,
+                loot_deck_size: self.board.loot_deck.len(),
                 loot_discard: self.board.loot_discard.clone(),
+                current_phase: self.current_phase.clone(),
+                active_player: self.turn_order.active_player_id.clone(),
             }),
         });
+        for (player_id, conn_id) in self.players_id_to_connection_id.clone() {
+            let _ = cmd_sender.send(ConnectionCommand::SendToPlayer {
+                connection_id: conn_id,
+                message: serialize_response(ServerResponse::PrivateBoardState {
+                    player_id: player_id.clone(),
+                    hand: self.board.player_hands.get(&player_id).cloned().unwrap(),
+                }),
+            });
+        }
         self.transition_to_phase(TurnPhases::UntapStartStep, &cmd_sender)
             .await;
 
