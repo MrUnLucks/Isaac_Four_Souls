@@ -2,47 +2,51 @@ use once_cell::sync::Lazy;
 use rand::rng;
 use rand::seq::SliceRandom;
 use std::{collections::HashMap, error::Error, fs};
+use uuid::Uuid;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LootCard {
-    pub id: String,
-    pub name: String,
-    #[serde(rename = "type")]
-    pub card_type: String,
-    pub subtype: String,
-    pub description: String,
-    pub count: u32,
-}
+use crate::game::cards_types::{Card, CardTemplate, CardType, LootCard, Zone};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Database {
-    pub loot_cards: HashMap<String, LootCard>,
+    pub loot_templates: HashMap<String, CardTemplate>,
 }
 
 impl Database {
     pub fn load() -> Result<Self, Box<dyn Error>> {
         println!("🃏 Loading card databases...");
         let database_path = fs::read_to_string("src/data/cards/loot.json")?;
-        let data: Vec<LootCard> = serde_json::from_str(&database_path)?;
-        let mut loot_cards = HashMap::new();
+        let data: Vec<CardTemplate> = serde_json::from_str(&database_path)?;
+        let mut loot_templates = HashMap::new();
 
         for database_card in data {
-            loot_cards.insert(database_card.id.clone(), database_card);
+            loot_templates.insert(database_card.id.clone(), database_card);
         }
-        Ok(Self { loot_cards })
+        Ok(Self { loot_templates })
     }
 
     pub fn create_loot_deck(&self) -> Vec<LootCard> {
         let mut deck = Vec::new();
-        let mut random_generator = rng();
-        deck.shuffle(&mut random_generator);
-        for card in self.loot_cards.values() {
-            for _ in 0..card.count {
-                deck.push(card.clone());
+        for template in self.loot_templates.values() {
+            for _ in 0..template.count {
+                let card = Card {
+                    entity_id: Uuid::new_v4().to_string(),
+                    template_id: template.id.clone(),
+                    name: template.name.clone(),
+                    description: template.description.clone(),
+                    zone: Zone::LootDeck,
+                    card_type: CardType::Loot,
+                    owner_id: String::new(), // Set when drawn
+                    subtype: template.subtype.clone(),
+                };
+
+                deck.push(LootCard { card });
             }
         }
+        let mut random_generator = rng();
+        deck.shuffle(&mut random_generator);
+        println!("{:?}", deck);
         deck
     }
 }

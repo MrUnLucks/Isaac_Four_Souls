@@ -1,8 +1,8 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
-use crate::AppError;
+use crate::{game::cards_types::LootCard, AppError};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClientMessageCategory {
@@ -105,6 +105,11 @@ pub enum ServerResponse {
     },
     GameEnded {
         winner_id: String,
+    },
+    BoardStateUpdate {
+        hands: HashMap<String, Vec<LootCard>>,
+        loot_deck: Vec<LootCard>,
+        loot_discard: Vec<LootCard>,
     },
     Error {
         error_type: String, // "RoomFull", "PlayerNotFound" variant_name of errror

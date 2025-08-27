@@ -2,6 +2,7 @@ use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use tokio::sync::mpsc;
 
+use crate::game::board::Board;
 use crate::game::card_loader::create_loot_deck;
 use crate::network::messages::{serialize_response, ServerResponse};
 use crate::{ConnectionCommand, TurnOrder};
@@ -27,6 +28,7 @@ pub struct GameMessageLoop {
     waiting_for_priority: bool,
     players_passed_priority: HashSet<String>,
     current_priority_player: String,
+    board: Board,
 }
 
 #[derive(Debug, Clone)]
@@ -47,16 +49,13 @@ impl GameMessageLoop {
         players_id_to_connection_id: HashMap<String, String>,
         turn_order: TurnOrder,
     ) -> Self {
-        // Create all the loot cards as entities
-        let loot_cards = create_loot_deck();
-        println!("🃏 Creating {} loot card entities", loot_cards.len());
-
         let room_connections_id = players_id_to_connection_id
             .values()
             .cloned()
             .into_iter()
             .collect();
 
+        let board = Board::new(players_id_to_connection_id.keys().cloned().collect());
         Self {
             turn_order: turn_order.clone(),
             players_id_to_connection_id,
@@ -66,6 +65,7 @@ impl GameMessageLoop {
             waiting_for_priority: false,
             players_passed_priority: HashSet::new(),
             current_priority_player: turn_order.active_player_id.clone(),
+            board,
         }
     }
 
@@ -74,6 +74,14 @@ impl GameMessageLoop {
         mut event_receiver: mpsc::Receiver<GameEvent>,
         cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
     ) {
+        let _ = cmd_sender.send(ConnectionCommand::SendToPlayers {
+            connections_id: self.room_connections_id.clone(),
+            message: serialize_response(ServerResponse::BoardStateUpdate {
+                hands: self.board.player_hands.clone(),
+                loot_deck: self.board.loot_deck.clone(),
+                loot_discard: self.board.loot_discard.clone(),
+            }),
+        });
         self.transition_to_phase(TurnPhases::UntapStartStep, &cmd_sender)
             .await;
 
@@ -121,6 +129,11 @@ impl GameMessageLoop {
         cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
     ) {
         self.current_phase = new_phase;
+
+        if matches!(self.current_phase, TurnPhases::UntapStartStep) {
+            self.board
+                .draw_loot_for_player(&self.turn_order.active_player_id);
+        }
 
         if matches!(self.current_phase, TurnPhases::TurnEnd) {
             let next_player = self.turn_order.advance_turn();

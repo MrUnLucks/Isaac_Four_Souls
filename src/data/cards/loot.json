@@ -2,7 +2,7 @@
   {
     "id": "1_cent",
     "name": "A Penny",
-    "type": "loot",
+    "card_type": "loot",
     "subtype": "loot",
     "description": "Gain 1¢",
     "count": 3
@@ -10,7 +10,7 @@
   {
     "id": "two_cents",
     "name": "2 Cents!",
-    "type": "loot",
+    "card_type": "loot",
     "subtype": "loot",
     "description": "Gain 2¢",
     "count": 2
@@ -18,7 +18,7 @@
   {
     "id": "nickel",
     "name": "A Nickel!",
-    "type": "loot",
+    "card_type": "loot",
     "subtype": "loot",
     "description": "Gain 5¢",
     "count": 1
@@ -26,7 +26,7 @@
   {
     "id": "dime",
     "name": "A Dime!",
-    "type": "loot",
+    "card_type": "loot",
     "subtype": "loot",
     "description": "Gain 10¢",
     "count": 1
@@ -34,7 +34,7 @@
   {
     "id": "bomb",
     "name": "Bomb",
-    "type": "loot",
+    "card_type": "loot",
     "subtype": "loot",
     "description": "Deal 1 damage to a Monster or Player.",
     "count": 1
@@ -42,7 +42,7 @@
   {
     "id": "battery",
     "name": "Battery",
-    "type": "loot",
+    "card_type": "loot",
     "subtype": "loot",
     "description": "Recharge an item",
     "count": 2
@@ -50,7 +50,7 @@
   {
     "id": "soul_heart",
     "name": "Soul Heart",
-    "type": "loot",
+    "card_type": "loot",
     "subtype": "loot",
     "description": "Choose a player. Prevent the next 1 damage they would take this turn.",
     "count": 2
@@ -58,7 +58,7 @@
   {
     "id": "loot_card",
     "name": "Loot Card",
-    "type": "loot",
+    "card_type": "loot",
     "subtype": "trinket",
     "description": "When this enters play, loot 1.//At the end of your turn you may return this to your hand.",
     "count": 1
