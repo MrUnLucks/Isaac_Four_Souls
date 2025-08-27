@@ -178,7 +178,9 @@ pub fn route_lobby_message(
 
             let ready_result = room_manager.ready_player(&player_id)?;
 
-            if ready_result.game_started {
+            // if ready_result.game_started
+            // Short circuit for faster testing
+            if true {
                 let players_mapping = room_manager.get_players_mapping(&room_id)?;
 
                 let turn_order = game_registry.start_game_message_loop(
@@ -257,6 +259,14 @@ pub fn route_game_message(
             game_registry.send_game_event_to_room_by_connection_id(
                 connection_id,
                 crate::game::game_message_loop::GameEvent::TurnPass { player_id },
+            )?
+        }
+        ClientMessage::PriorityPass => {
+            let (_, player_id) = game_registry.get_player_info_from_connection_id(connection_id)?;
+
+            game_registry.send_game_event_to_room_by_connection_id(
+                connection_id,
+                crate::game::game_message_loop::GameEvent::PriorityPass { player_id },
             )?
         }
         _ => {

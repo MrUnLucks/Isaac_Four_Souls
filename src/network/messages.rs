@@ -30,6 +30,7 @@ pub enum ClientMessage {
     LeaveRoom,
     PlayerReady,
     TurnPass,
+    PriorityPass,
 }
 
 impl ClientMessage {
@@ -43,7 +44,9 @@ impl ClientMessage {
             | ClientMessage::LeaveRoom
             | ClientMessage::PlayerReady => ClientMessageCategory::LobbyMessage,
 
-            ClientMessage::TurnPass => ClientMessageCategory::GameMessage,
+            ClientMessage::TurnPass | ClientMessage::PriorityPass => {
+                ClientMessageCategory::GameMessage
+            }
         }
     }
 }
@@ -92,6 +95,13 @@ pub enum ServerResponse {
     //Broadcast for all players
     TurnChange {
         next_player_id: String,
+    },
+    PriorityChange {
+        player_id: String,
+    },
+    PhaseStart {
+        phase: crate::game::game_message_loop::TurnPhases,
+        priority_player: String,
     },
     GameEnded {
         winner_id: String,

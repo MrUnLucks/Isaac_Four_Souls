@@ -8,15 +8,6 @@ pub struct TurnOrder {
     turn_counter: u32,
 }
 
-pub enum TurnPhases {
-    UntapStep,
-    StartStep, // Start of turn abilities
-    LootStep,
-    ActionStep, // Loot play - Attack - Shop
-    EndStep,    // End of turn abilities
-    TurnEnd,
-}
-
 impl TurnOrder {
     pub fn new(player_ids: Vec<String>) -> Self {
         let mut random_generator = rng();
