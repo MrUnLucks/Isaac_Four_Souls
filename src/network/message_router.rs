@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Mutex};
 
+use crate::game::event_handler::GameEvent;
 use crate::network::messages::{serialize_response, ClientMessage, ServerResponse};
 use crate::{AppError, ConnectionCommand, GameMessageLoopRegistry, RoomManager};
 
@@ -258,7 +259,7 @@ pub fn route_game_message(
 
             game_registry.send_game_event_to_room_by_connection_id(
                 connection_id,
-                crate::game::game_message_loop::GameEvent::TurnPass { player_id },
+                GameEvent::TurnPass { player_id },
             )?
         }
         ClientMessage::PriorityPass => {
@@ -266,7 +267,7 @@ pub fn route_game_message(
 
             game_registry.send_game_event_to_room_by_connection_id(
                 connection_id,
-                crate::game::game_message_loop::GameEvent::PriorityPass { player_id },
+                GameEvent::PriorityPass { player_id },
             )?
         }
         _ => {

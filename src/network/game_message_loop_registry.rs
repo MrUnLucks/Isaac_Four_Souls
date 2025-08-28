@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use dashmap::DashMap;
 use tokio::sync::mpsc::{self, UnboundedSender};
 
-use crate::game::game_message_loop::{GameEvent, GameMessageLoop};
+use crate::game::event_handler::GameEvent;
+use crate::game::game_message_loop::GameMessageLoop;
 use crate::{AppError, AppResult, ConnectionCommand, TurnOrder};
 
 pub struct GameMessageLoopRegistry {

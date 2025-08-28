@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    game::{cards_types::LootCard, game_message_loop::TurnPhases},
+    game::{cards_types::LootCard, game_state::TurnPhases},
     AppError,
 };
 
