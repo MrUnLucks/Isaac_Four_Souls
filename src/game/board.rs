@@ -92,7 +92,7 @@ impl Board {
             .get_mut(player_id)
             .ok_or(BoardError::PlayerNotFound)?;
 
-        if let Some(pos) = hand.iter().position(|card| card.entity_id == card_id) {
+        if let Some(pos) = hand.iter().position(|card| card.template_id == card_id) {
             Ok(hand.remove(pos))
         } else {
             Err(BoardError::CardNotInHand)
