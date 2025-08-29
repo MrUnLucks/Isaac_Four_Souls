@@ -1,10 +1,6 @@
-// ENHANCEMENT: Move RoomManager functionality directly into LobbyActor
-// This eliminates the last piece of shared state
-
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use uuid::Uuid;
 
 use crate::actors::actor_registry::ActorRegistry;
 use crate::network::messages::{serialize_response, ServerResponse};
@@ -49,7 +45,6 @@ struct PlayerRoomInfo {
 }
 
 pub struct LobbyActor {
-    // MOVED: All RoomManager state directly into LobbyActor
     rooms: HashMap<String, Room>,
     connection_to_room_info: HashMap<String, PlayerRoomInfo>,
     rooms_connections_map: HashMap<String, HashSet<String>>,
@@ -202,10 +197,8 @@ impl LobbyActor {
                 let ready_result = self.ready_player(&player_id)?;
 
                 if true {
-                    // Game start condition
                     let players_mapping = self.get_players_mapping(&room_id)?;
 
-                    // DEBUG: Log the players mapping
                     println!(
                         "🏛️ Starting game for room {} with players: {:?}",
                         room_id, players_mapping
@@ -265,7 +258,6 @@ impl LobbyActor {
         Ok(())
     }
 
-    // MOVED: All RoomManager methods directly into LobbyActor
     fn create_room(
         &mut self,
         room_name: String,

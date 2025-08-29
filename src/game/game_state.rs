@@ -82,23 +82,32 @@ impl GameState {
     // State mutation methods - return new state or error
     pub fn with_priority_pass(&self, player_id: String) -> Result<Self, GameStateError> {
         if !self.can_player_pass_priority(&player_id) {
+            println!("❌ Player {} cannot pass priority", player_id);
             return Err(GameStateError::InvalidPriorityPass);
         }
 
         let mut new_state = self.clone();
-        new_state.players_passed_priority.insert(player_id);
+        new_state.players_passed_priority.insert(player_id.clone());
 
         if new_state.all_players_passed_priority() {
-            new_state.waiting_for_priority = false;
-            new_state.current_phase = new_state.get_next_phase();
+            println!("🎯 All players passed priority, advancing phase");
+            new_state = new_state.with_phase_transition(new_state.get_next_phase());
         } else if let Some(next_player) = new_state.get_next_priority_player() {
+            println!("🎯 Next priority player: {}", next_player);
             new_state.current_priority_player = next_player;
+        } else {
+            println!("❌ No next priority player found!");
         }
 
         Ok(new_state)
     }
 
     pub fn with_phase_transition(&self, new_phase: TurnPhases) -> Self {
+        println!(
+            "🔄 Phase transition: {:?} -> {:?}",
+            self.current_phase, new_phase
+        );
+
         let mut new_state = self.clone();
         new_state.current_phase = new_phase.clone();
 
@@ -106,13 +115,21 @@ impl GameState {
             new_state.turn_order.advance_turn();
             new_state.current_phase = TurnPhases::UntapStartStep;
             new_state.current_priority_player = new_state.turn_order.active_player_id.clone();
-        }
-
-        if !matches!(new_state.current_phase, TurnPhases::TurnEnd) {
+            new_state.waiting_for_priority = true;
+            new_state.players_passed_priority.clear();
+        } else {
             new_state.waiting_for_priority = true;
             new_state.players_passed_priority.clear();
             new_state.current_priority_player = new_state.turn_order.active_player_id.clone();
         }
+
+        println!(
+            "🔄 New state - Phase: {:?}, Priority player: {}, Waiting: {}, Passed: {:?}",
+            new_state.current_phase,
+            new_state.current_priority_player,
+            new_state.waiting_for_priority,
+            new_state.players_passed_priority
+        );
 
         new_state
     }
