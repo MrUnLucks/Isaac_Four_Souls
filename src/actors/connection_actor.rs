@@ -1,10 +1,16 @@
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc;
 
 use crate::actors::actor_registry::ActorRegistry;
 use crate::actors::game_actor::GameMessage;
 use crate::actors::lobby_actor::LobbyMessage;
-use crate::network::messages::{ClientMessage, ClientMessageCategory};
+use crate::network::messages::{ClientMessage, ClientMessageCategory, ServerResponse};
+use crate::network::reliable_messaging::{
+    create_reliable_message, MessageAck, MessageReceiver, PendingMessage, ReliableMessage,
+};
 use crate::{AppError, ConnectionCommand};
 
 #[derive(Debug)]
@@ -13,6 +19,14 @@ pub enum ConnectionMessage {
     TransitionToGame { game_id: String, player_id: String },
     TransitionToLobby,
     Disconnect,
+    ReliableMessage { message: ReliableMessage },
+    MessageAck { ack: MessageAck },
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum ReliableServerResponse {
+    Reliable(ReliableMessage),
+    Ack(MessageAck),
 }
 
 #[derive(Debug, Clone)]
@@ -26,6 +40,9 @@ pub struct ConnectionActor {
     state: ConnectionState,
     actor_registry: Arc<ActorRegistry>,
     cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
+
+    message_receiver: MessageReceiver,
+    pending_messages: HashMap<String, PendingMessage>,
 }
 
 impl ConnectionActor {
@@ -39,6 +56,8 @@ impl ConnectionActor {
             state: ConnectionState::InLobby,
             actor_registry,
             cmd_sender,
+            message_receiver: MessageReceiver::new(),
+            pending_messages: HashMap::new(),
         }
     }
 
@@ -71,6 +90,17 @@ impl ConnectionActor {
                     );
                     self.state = ConnectionState::InLobby;
                 }
+                ConnectionMessage::ReliableMessage { message } => {
+                    if let Err(error) = self.handle_reliable_message(message).await {
+                        eprintln!(
+                            "Reliable message error for {}: {:?}",
+                            self.connection_id, error
+                        );
+                    }
+                }
+                ConnectionMessage::MessageAck { ack } => {
+                    self.handle_ack(ack);
+                }
                 ConnectionMessage::Disconnect => {
                     println!(
                         "🔌 Connection actor {} received disconnect",
@@ -94,6 +124,68 @@ impl ConnectionActor {
         match message.category() {
             ClientMessageCategory::LobbyMessage => self.handle_lobby_message(message).await,
             ClientMessageCategory::GameMessage => self.handle_game_message(message).await,
+        }
+    }
+
+    async fn send_message_now(&self, message: ReliableMessage) {
+        let wrapper = ReliableServerResponse::Reliable(message);
+        let serialized = serde_json::to_string(&wrapper).unwrap();
+
+        let _ = self.cmd_sender.send(ConnectionCommand::SendToPlayer {
+            connection_id: self.connection_id.clone(),
+            message: serialized,
+        });
+    }
+
+    pub async fn send_reliable(&mut self, payload: String) {
+        let message = create_reliable_message(payload);
+
+        // Try to send, retry up to 3 times immediately
+        for _ in 1..=3 {
+            self.send_message_now(message.clone()).await;
+
+            // Wait a bit and see if we get an ack
+            tokio::time::sleep(Duration::from_millis(500)).await;
+
+            // If message was acked, we're done
+            if !self.pending_messages.contains_key(&message.id) {
+                return;
+            }
+        }
+    }
+
+    pub async fn handle_reliable_message(
+        &mut self,
+        message: ReliableMessage,
+    ) -> Result<(), AppError> {
+        let (ack, ordered_messages) = self.message_receiver.receive_message(message);
+
+        // Send ack
+        self.send_ack(ack).await;
+
+        // Process ordered messages
+        for msg in ordered_messages {
+            if let Ok(client_message) = serde_json::from_str(&msg.payload) {
+                self.handle_client_message(client_message).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn send_ack(&self, ack: MessageAck) {
+        let wrapper = ReliableServerResponse::Ack(ack);
+        let serialized = serde_json::to_string(&wrapper).unwrap();
+
+        let _ = self.cmd_sender.send(ConnectionCommand::SendToPlayer {
+            connection_id: self.connection_id.clone(),
+            message: serialized,
+        });
+    }
+
+    pub fn handle_ack(&mut self, ack: MessageAck) {
+        if self.pending_messages.remove(&ack.message_id).is_some() {
+            println!("✅ Message {} acknowledged", ack.message_id);
         }
     }
 
@@ -231,5 +323,25 @@ impl ConnectionActor {
 
     pub fn get_state(&self) -> &ConnectionState {
         &self.state
+    }
+
+    pub async fn send_reliable_game_state(
+        connection_actor: &mut ConnectionActor,
+        state: &ServerResponse,
+    ) {
+        let payload = serde_json::to_string(state).unwrap();
+        connection_actor.send_reliable(payload).await;
+    }
+
+    pub async fn send_unreliable_chat(
+        cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
+        connection_id: &str,
+        message: &ServerResponse,
+    ) {
+        let serialized = serde_json::to_string(message).unwrap();
+        let _ = cmd_sender.send(ConnectionCommand::SendToPlayer {
+            connection_id: connection_id.to_string(),
+            message: serialized,
+        });
     }
 }

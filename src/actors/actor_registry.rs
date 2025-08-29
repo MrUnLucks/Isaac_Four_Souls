@@ -1,6 +1,5 @@
 use dashmap::DashMap;
 use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::sync::mpsc;
 
 use crate::actors::connection_actor::ConnectionMessage;
@@ -75,12 +74,12 @@ impl ActorRegistry {
         let (game_sender, game_receiver) = mpsc::unbounded_channel::<GameMessage>();
 
         // Store connection -> game mapping
-        for (player_id, connection_id) in &players_id_to_connection_id {
+        for (_, connection_id) in &players_id_to_connection_id {
             self.connection_to_game_mapping
                 .insert(connection_id.clone(), game_id.clone());
 
             // NEW: Notify connection actors about game state transition
-            if let Some(conn_sender) = self.connection_actors.get(connection_id) {
+            if let Some(_) = self.connection_actors.get(connection_id) {
                 // We can't directly call methods on the connection actor, but we could
                 // send a state transition message if we had that message type
                 // For now, we'll handle this through the connection actor's internal logic
