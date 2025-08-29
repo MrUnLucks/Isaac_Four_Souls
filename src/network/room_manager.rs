@@ -8,7 +8,7 @@ pub struct PlayerRoomInfo {
     pub room_player_id: String,
     pub player_name: String,
 }
-
+#[deprecated(note = "RoomManager functionality moved to LobbyActor")]
 pub struct RoomManager {
     pub rooms: HashMap<String, Room>,
     pub connection_to_room_info: HashMap<String, PlayerRoomInfo>, // connection_id -> room info

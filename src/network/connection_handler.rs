@@ -6,11 +6,8 @@ use tokio::sync::mpsc;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 use crate::actors::actor_registry::ActorRegistry;
-use crate::actors::game_actor::GameMessage;
-use crate::actors::lobby_actor::LobbyMessage;
-use crate::network::messages::{
-    deserialize_message, serialize_response, ClientMessage, ClientMessageCategory, ServerResponse,
-};
+use crate::actors::connection_actor::{ConnectionActor, ConnectionMessage};
+use crate::network::messages::{deserialize_message, serialize_response, ServerResponse};
 use crate::{AppError, ConnectionCommand};
 
 pub struct ConnectionHandler;
@@ -27,12 +24,13 @@ impl ConnectionHandler {
 
         let (ws_sender, mut ws_receiver) = ws_stream.split();
 
+        // Add WebSocket connection to connection manager
         cmd_sender.send(ConnectionCommand::AddConnection {
             id: connection_id.clone(),
             sender: ws_sender,
         })?;
 
-        // TEMPORARY FOR DEBUGGING: Send connection ID to client
+        // Send connection ID to client
         let connection_id_message = serialize_response(ServerResponse::ConnectionId {
             connection_id: connection_id.clone(),
         });
@@ -41,121 +39,73 @@ impl ConnectionHandler {
             message: connection_id_message,
         })?;
 
+        // NEW: Create and spawn connection actor
+        let (conn_sender, conn_receiver) = mpsc::unbounded_channel::<ConnectionMessage>();
+        let mut connection_actor = ConnectionActor::new(
+            connection_id.clone(),
+            actor_registry.clone(),
+            cmd_sender.clone(),
+        );
+
+        // Register connection actor in registry
+        actor_registry.register_connection_actor(connection_id.clone(), conn_sender.clone());
+
+        // Spawn connection actor task
+        tokio::spawn(async move {
+            connection_actor.run(conn_receiver).await;
+        });
+
+        // SIMPLIFIED: Main WebSocket loop just forwards messages to connection actor
         while let Some(msg) = ws_receiver.next().await {
             match msg {
                 Ok(Message::Text(text)) => {
-                    if let Err(e) =
-                        process_message(text, &connection_id, &actor_registry, &cmd_sender).await
-                    {
-                        eprintln!(
-                            "⚠️ Message error from {}: {} (continuing...)",
-                            connection_id, e
-                        );
-                        // Send error but keep connection alive
-                        let _ = cmd_sender.send(ConnectionCommand::SendToPlayer {
-                            connection_id: connection_id.clone(),
-                            message: serialize_response(ServerResponse::from_app_error(
-                                &AppError::UnknownMessage {
-                                    message: "Message failed to process".to_string(),
-                                },
-                            )),
-                        });
+                    match deserialize_message(&text) {
+                        Ok(client_message) => {
+                            let connection_message = ConnectionMessage::ClientMessage {
+                                message: client_message,
+                            };
+
+                            if let Err(_) = conn_sender.send(connection_message) {
+                                // Connection actor is gone, break the loop
+                                eprintln!("Connection actor for {} is gone", connection_id);
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Parse error from {}: {}", connection_id, e);
+                            // Send error but continue
+                            let _ = cmd_sender.send(ConnectionCommand::SendToPlayer {
+                                connection_id: connection_id.clone(),
+                                message: serialize_response(ServerResponse::from_app_error(
+                                    &AppError::UnknownMessage {
+                                        message: format!("Parse error: {}", e),
+                                    },
+                                )),
+                            });
+                        }
                     }
                 }
-                Ok(Message::Close(_)) => break,
+                Ok(Message::Close(_)) => {
+                    println!("🔌 WebSocket close for {}", connection_id);
+                    break;
+                }
                 Ok(_) => continue, // Ignore other message types
                 Err(e) => {
                     eprintln!("WebSocket error {}: {}", connection_id, e);
-                    break; // Only break on WebSocket errors
+                    break;
                 }
             }
         }
-        actor_registry.remove_player_connection(&connection_id);
 
-        // Clean up when connection closes
+        // CLEANUP: Notify connection actor to disconnect
+        let _ = actor_registry.disconnect_connection_actor(&connection_id);
+
+        // Remove WebSocket connection
         cmd_sender.send(ConnectionCommand::RemoveConnection {
             id: connection_id.clone(),
         })?;
 
         println!("📴 Connection {} closed", connection_id);
         Ok(())
-    }
-}
-
-async fn process_message(
-    text: String,
-    connection_id: &str,
-    actor_registry: &Arc<ActorRegistry>,
-    cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let client_message = deserialize_message(&text).map_err(|e| format!("Parse error: {}", e))?;
-
-    match client_message.category() {
-        ClientMessageCategory::LobbyMessage => {
-            let lobby_message = convert_to_lobby_message(client_message, connection_id)?;
-            actor_registry.send_lobby_message(lobby_message)?;
-        }
-        ClientMessageCategory::GameMessage => {
-            let game_message =
-                convert_to_game_message(client_message, connection_id, actor_registry)?;
-            actor_registry.send_game_message(connection_id, game_message)?;
-        }
-    }
-    Ok(())
-}
-fn convert_to_lobby_message(
-    client_message: ClientMessage,
-    connection_id: &str,
-) -> Result<LobbyMessage, AppError> {
-    let connection_id = connection_id.to_string();
-
-    match client_message {
-        ClientMessage::Ping => Ok(LobbyMessage::Ping { connection_id }),
-        ClientMessage::Chat { message } => Ok(LobbyMessage::Chat {
-            connection_id,
-            message,
-        }),
-        ClientMessage::CreateRoom {
-            room_name,
-            first_player_name,
-        } => Ok(LobbyMessage::CreateRoom {
-            connection_id,
-            room_name,
-            first_player_name,
-        }),
-        ClientMessage::DestroyRoom { room_id } => Ok(LobbyMessage::DestroyRoom {
-            connection_id,
-            room_id,
-        }),
-        ClientMessage::JoinRoom {
-            player_name,
-            room_id,
-        } => Ok(LobbyMessage::JoinRoom {
-            connection_id,
-            player_name,
-            room_id,
-        }),
-        ClientMessage::LeaveRoom => Ok(LobbyMessage::LeaveRoom { connection_id }),
-        ClientMessage::PlayerReady => Ok(LobbyMessage::PlayerReady { connection_id }),
-        _ => Err(AppError::Internal {
-            message: "Invalid lobby message conversion".to_string(),
-        }),
-    }
-}
-fn convert_to_game_message(
-    client_message: ClientMessage,
-    connection_id: &str,
-    actor_registry: &ActorRegistry,
-) -> Result<GameMessage, AppError> {
-    match client_message {
-        ClientMessage::TurnPass => Ok(GameMessage::TurnPass {
-            player_id: format!("player_from_{}", connection_id),
-        }),
-        ClientMessage::PriorityPass => Ok(GameMessage::PriorityPass {
-            player_id: format!("player_from_{}", connection_id),
-        }),
-        _ => Err(AppError::Internal {
-            message: "Invalid game message conversion".to_string(),
-        }),
     }
 }
