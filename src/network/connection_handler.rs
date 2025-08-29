@@ -5,13 +5,13 @@ use tokio::net::TcpStream;
 use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
+use crate::actors::actor_registry::ActorRegistry;
+use crate::actors::lobby_actor::LobbyMessage;
 use crate::network::message_router::handle_game_message;
 use crate::network::messages::{
-    deserialize_message, serialize_response, ClientMessageCategory, ServerResponse,
+    deserialize_message, serialize_response, ClientMessage, ClientMessageCategory, ServerResponse,
 };
-use crate::{
-    handle_lobby_message, AppError, ConnectionCommand, GameMessageLoopRegistry, RoomManager,
-};
+use crate::{AppError, ConnectionCommand, GameMessageLoopRegistry};
 
 pub struct ConnectionHandler;
 
@@ -19,7 +19,7 @@ impl ConnectionHandler {
     pub async fn handle_connection(
         stream: TcpStream,
         connection_id: String,
-        room_manager: Arc<Mutex<RoomManager>>,
+        actor_registry: Arc<ActorRegistry>,
         cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
         game_registry: Arc<GameMessageLoopRegistry>,
     ) -> Result<(), Box<dyn Error>> {
@@ -48,7 +48,7 @@ impl ConnectionHandler {
                     if let Err(e) = process_message(
                         text,
                         &connection_id,
-                        &room_manager,
+                        &actor_registry,
                         &cmd_sender,
                         &game_registry,
                     )
@@ -93,7 +93,7 @@ impl ConnectionHandler {
 async fn process_message(
     text: String,
     connection_id: &str,
-    room_manager: &Arc<Mutex<RoomManager>>,
+    actor_registry: &Arc<ActorRegistry>,
     cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
     game_registry: &Arc<GameMessageLoopRegistry>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -101,18 +101,51 @@ async fn process_message(
 
     match client_message.category() {
         ClientMessageCategory::LobbyMessage => {
-            handle_lobby_message(
-                client_message,
-                connection_id,
-                room_manager,
-                cmd_sender,
-                game_registry,
-            )
-            .await;
+            let lobby_message = convert_to_lobby_message(client_message, connection_id)?;
+            actor_registry.send_lobby_message(lobby_message)?;
         }
         ClientMessageCategory::GameMessage => {
             handle_game_message(client_message, connection_id, game_registry, cmd_sender);
         }
     }
     Ok(())
+}
+fn convert_to_lobby_message(
+    client_message: ClientMessage,
+    connection_id: &str,
+) -> Result<LobbyMessage, AppError> {
+    let connection_id = connection_id.to_string();
+
+    match client_message {
+        ClientMessage::Ping => Ok(LobbyMessage::Ping { connection_id }),
+        ClientMessage::Chat { message } => Ok(LobbyMessage::Chat {
+            connection_id,
+            message,
+        }),
+        ClientMessage::CreateRoom {
+            room_name,
+            first_player_name,
+        } => Ok(LobbyMessage::CreateRoom {
+            connection_id,
+            room_name,
+            first_player_name,
+        }),
+        ClientMessage::DestroyRoom { room_id } => Ok(LobbyMessage::DestroyRoom {
+            connection_id,
+            room_id,
+        }),
+        ClientMessage::JoinRoom {
+            player_name,
+            room_id,
+        } => Ok(LobbyMessage::JoinRoom {
+            connection_id,
+            player_name,
+            room_id,
+        }),
+        ClientMessage::LeaveRoom => Ok(LobbyMessage::LeaveRoom { connection_id }),
+        ClientMessage::PlayerReady => Ok(LobbyMessage::PlayerReady { connection_id }),
+        _ => Err(AppError::Internal {
+            message: "Invalid lobby message conversion".to_string(),
+        }),
+    }
 }
