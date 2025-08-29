@@ -42,7 +42,6 @@ impl WebsocketServer {
 
         let game_message_loop_registry = Arc::new(GameMessageLoopRegistry::new());
 
-        // NEW: Start lobby actor
         let (lobby_sender, lobby_receiver) = mpsc::unbounded_channel::<LobbyMessage>();
         let mut lobby_actor =
             LobbyActor::new(game_message_loop_registry.clone(), cmd_sender.clone());
@@ -57,7 +56,7 @@ impl WebsocketServer {
             println!("🔗 New connection from: {}", addr);
             let connection_id = Uuid::new_v4().to_string();
 
-            let actor_registry = actor_registry.clone(); // CHANGED
+            let actor_registry = actor_registry.clone();
             let cmd_sender = cmd_sender.clone();
             let game_registry = game_message_loop_registry.clone();
 
@@ -65,7 +64,7 @@ impl WebsocketServer {
                 if let Err(e) = ConnectionHandler::handle_connection(
                     stream,
                     connection_id,
-                    actor_registry, // CHANGED: now passes actor_registry
+                    actor_registry,
                     cmd_sender,
                     game_registry,
                 )
