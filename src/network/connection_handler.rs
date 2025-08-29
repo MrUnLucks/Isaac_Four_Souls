@@ -2,16 +2,16 @@ use futures_util::StreamExt;
 use std::error::Error;
 use std::sync::Arc;
 use tokio::net::TcpStream;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::mpsc;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 use crate::actors::actor_registry::ActorRegistry;
+use crate::actors::game_actor::GameMessage;
 use crate::actors::lobby_actor::LobbyMessage;
-use crate::network::message_router::handle_game_message;
 use crate::network::messages::{
     deserialize_message, serialize_response, ClientMessage, ClientMessageCategory, ServerResponse,
 };
-use crate::{AppError, ConnectionCommand, GameMessageLoopRegistry};
+use crate::{AppError, ConnectionCommand};
 
 pub struct ConnectionHandler;
 
@@ -21,7 +21,6 @@ impl ConnectionHandler {
         connection_id: String,
         actor_registry: Arc<ActorRegistry>,
         cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
-        game_registry: Arc<GameMessageLoopRegistry>,
     ) -> Result<(), Box<dyn Error>> {
         let ws_stream = accept_async(stream).await?;
         println!("✅ WebSocket connection {} established", connection_id);
@@ -45,14 +44,8 @@ impl ConnectionHandler {
         while let Some(msg) = ws_receiver.next().await {
             match msg {
                 Ok(Message::Text(text)) => {
-                    if let Err(e) = process_message(
-                        text,
-                        &connection_id,
-                        &actor_registry,
-                        &cmd_sender,
-                        &game_registry,
-                    )
-                    .await
+                    if let Err(e) =
+                        process_message(text, &connection_id, &actor_registry, &cmd_sender).await
                     {
                         eprintln!(
                             "⚠️ Message error from {}: {} (continuing...)",
@@ -77,13 +70,12 @@ impl ConnectionHandler {
                 }
             }
         }
+        actor_registry.remove_player_connection(&connection_id);
 
         // Clean up when connection closes
         cmd_sender.send(ConnectionCommand::RemoveConnection {
             id: connection_id.clone(),
         })?;
-
-        game_registry.remove_player(&connection_id);
 
         println!("📴 Connection {} closed", connection_id);
         Ok(())
@@ -95,7 +87,6 @@ async fn process_message(
     connection_id: &str,
     actor_registry: &Arc<ActorRegistry>,
     cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-    game_registry: &Arc<GameMessageLoopRegistry>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let client_message = deserialize_message(&text).map_err(|e| format!("Parse error: {}", e))?;
 
@@ -105,7 +96,9 @@ async fn process_message(
             actor_registry.send_lobby_message(lobby_message)?;
         }
         ClientMessageCategory::GameMessage => {
-            handle_game_message(client_message, connection_id, game_registry, cmd_sender);
+            let game_message =
+                convert_to_game_message(client_message, connection_id, actor_registry)?;
+            actor_registry.send_game_message(connection_id, game_message)?;
         }
     }
     Ok(())
@@ -146,6 +139,23 @@ fn convert_to_lobby_message(
         ClientMessage::PlayerReady => Ok(LobbyMessage::PlayerReady { connection_id }),
         _ => Err(AppError::Internal {
             message: "Invalid lobby message conversion".to_string(),
+        }),
+    }
+}
+fn convert_to_game_message(
+    client_message: ClientMessage,
+    connection_id: &str,
+    actor_registry: &ActorRegistry,
+) -> Result<GameMessage, AppError> {
+    match client_message {
+        ClientMessage::TurnPass => Ok(GameMessage::TurnPass {
+            player_id: format!("player_from_{}", connection_id),
+        }),
+        ClientMessage::PriorityPass => Ok(GameMessage::PriorityPass {
+            player_id: format!("player_from_{}", connection_id),
+        }),
+        _ => Err(AppError::Internal {
+            message: "Invalid game message conversion".to_string(),
         }),
     }
 }

@@ -1,8 +1,9 @@
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
+use crate::actors::actor_registry::ActorRegistry;
 use crate::network::messages::{serialize_response, ServerResponse};
-use crate::{AppError, ConnectionCommand, GameMessageLoopRegistry, RoomManager};
+use crate::{AppError, ConnectionCommand, RoomManager};
 
 #[derive(Debug)]
 pub enum LobbyMessage {
@@ -37,18 +38,18 @@ pub enum LobbyMessage {
 
 pub struct LobbyActor {
     room_manager: RoomManager,
-    game_registry: Arc<GameMessageLoopRegistry>,
+    actor_registry: Arc<ActorRegistry>,
     cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
 }
 
 impl LobbyActor {
     pub fn new(
-        game_registry: Arc<GameMessageLoopRegistry>,
+        actor_registry: Arc<ActorRegistry>,
         cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
     ) -> Self {
         Self {
             room_manager: RoomManager::new(),
-            game_registry,
+            actor_registry,
             cmd_sender,
         }
     }
@@ -202,8 +203,8 @@ impl LobbyActor {
                 if true {
                     let players_mapping = self.room_manager.get_players_mapping(&room_id)?;
 
-                    let turn_order = self.game_registry.start_game_message_loop(
-                        &room_id,
+                    let turn_order = self.actor_registry.start_game_actor(
+                        room_id.clone(),
                         players_mapping,
                         self.cmd_sender.clone(),
                     )?;
