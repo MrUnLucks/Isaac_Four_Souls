@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::game::game_state::{GameState, GameStateError, TurnPhases};
+use crate::game::game_state::{GameState, TurnPhases};
 use crate::network::messages::{serialize_response, ServerResponse};
 use crate::{AppError, ConnectionCommand};
 use tokio::sync::mpsc;
@@ -48,9 +48,7 @@ impl EventHandler {
                         self.broadcast_priority_change(&new_state, cmd_sender).await;
                         Ok(new_state)
                     }
-                    Err(GameStateError::InvalidPriorityPass) => {
-                        Err(AppError::NotPlayerTurn) // Convert to app error
-                    }
+                    Err(AppError::InvalidPriorityPass) => Err(AppError::InvalidPriorityPass),
                     _ => Err(AppError::Internal {
                         message: "Unexpected game state error".to_string(),
                     }),

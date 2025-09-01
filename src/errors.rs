@@ -65,6 +65,24 @@ pub enum AppError {
     #[error("Game ended unexpectedly")]
     GameEndedUnexpectedly,
 
+    #[error("Player not found")]
+    PlayerNotFound,
+
+    #[error("Empty loot deck with reshuffle")]
+    EmptyLootDeck,
+
+    #[error("Invalid card: not in player's hand")]
+    CardNotInHand,
+
+    #[error("Invalid Priority pass")]
+    InvalidPriorityPass,
+
+    #[error("Invalid Turn Pass")]
+    InvalidTurnPass,
+
+    #[error("Game ended")]
+    GameEnded,
+
     #[error("Not player's turn")]
     NotPlayerTurn,
 
@@ -103,11 +121,17 @@ impl AppError {
             | AppError::GameEventSendFailed { .. }
             | AppError::SerializationError { .. }
             | AppError::WebSocketError { .. }
-            | AppError::Internal { .. } => ErrorCategory::ServerError,
+            | AppError::Internal { .. }
+            | AppError::GameEndedUnexpectedly { .. } => ErrorCategory::ServerError,
 
             AppError::PlayersNotReady { .. }
             | AppError::NotPlayerTurn
-            | AppError::GameEndedUnexpectedly => ErrorCategory::GameError,
+            | AppError::PlayerNotFound
+            | AppError::EmptyLootDeck
+            | AppError::CardNotInHand
+            | AppError::InvalidPriorityPass
+            | AppError::InvalidTurnPass
+            | AppError::GameEnded => ErrorCategory::GameError,
         }
     }
 
@@ -146,6 +170,12 @@ impl AppError {
             AppError::WebSocketError { .. } => "WebSocketError",
             AppError::UnknownMessage { .. } => "UnknownMessage",
             AppError::Internal { .. } => "Internal",
+            AppError::CardNotInHand { .. } => "CardNotInHand",
+            AppError::PlayerNotFound { .. } => "PlayerNotFound",
+            AppError::EmptyLootDeck { .. } => "EmptyLootDeck",
+            AppError::InvalidPriorityPass { .. } => "InvalidPriorityPass",
+            AppError::InvalidTurnPass { .. } => "InvalidTurnPass",
+            AppError::GameEnded { .. } => "GameEnded",
         }
     }
 

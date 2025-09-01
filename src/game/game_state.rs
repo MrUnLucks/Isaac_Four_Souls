@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::collections::HashSet;
 
 use crate::game::board::Board;
-use crate::TurnOrder;
+use crate::{AppError, AppResult, TurnOrder};
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub enum TurnPhases {
@@ -80,10 +80,10 @@ impl GameState {
     }
 
     // State mutation methods - return new state or error
-    pub fn with_priority_pass(&self, player_id: String) -> Result<Self, GameStateError> {
+    pub fn with_priority_pass(&self, player_id: String) -> AppResult<Self> {
         if !self.can_player_pass_priority(&player_id) {
             println!("❌ Player {} cannot pass priority", player_id);
-            return Err(GameStateError::InvalidPriorityPass);
+            return Err(AppError::InvalidPriorityPass);
         }
 
         let mut new_state = self.clone();
@@ -133,11 +133,4 @@ impl GameState {
 
         new_state
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum GameStateError {
-    InvalidPriorityPass,
-    InvalidTurnPass,
-    GameEnded,
 }
