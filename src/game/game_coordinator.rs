@@ -81,7 +81,7 @@ impl GameCoordinator {
         self.game_state = self.game_state.with_phase_transition(new_phase);
 
         // Handle phase-specific logic
-        if matches!(self.game_state.current_phase, TurnPhases::UntapStartStep) {
+        if matches!(self.game_state.current_phase, TurnPhases::LootStep) {
             // Draw loot for active player
             let _ = self
                 .game_state
