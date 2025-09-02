@@ -76,8 +76,6 @@ impl GameActor {
 
                 // Future enhancements:
                 // - Game tick timer
-                // - Player timeout handling
-                // - Periodic state saves
             }
         }
 
@@ -89,7 +87,6 @@ impl GameActor {
         message: GameMessage,
         cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
     ) -> Result<(), AppError> {
-        // DEBUG: Log message handling
         println!("🎮 Game {} handling message: {:?}", self.game_id, message);
         println!(
             "🎮 Connection->Player mapping: {:?}",

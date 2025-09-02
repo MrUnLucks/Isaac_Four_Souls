@@ -206,7 +206,7 @@ impl LobbyActor {
 
                     let turn_order = self.actor_registry.start_game_actor(
                         room_id.clone(),
-                        players_mapping.clone(), // Clone for notification use
+                        players_mapping.clone(),
                         self.cmd_sender.clone(),
                     )?;
 

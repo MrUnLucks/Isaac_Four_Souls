@@ -39,7 +39,6 @@ impl ConnectionHandler {
             message: connection_id_message,
         })?;
 
-        // NEW: Create and spawn connection actor
         let (conn_sender, conn_receiver) = mpsc::unbounded_channel::<ConnectionMessage>();
         let mut connection_actor = ConnectionActor::new(
             connection_id.clone(),
@@ -55,7 +54,7 @@ impl ConnectionHandler {
             connection_actor.run(conn_receiver).await;
         });
 
-        // SIMPLIFIED: Main WebSocket loop just forwards messages to connection actor
+        // Main WebSocket loop just forwards messages to connection actor
         while let Some(msg) = ws_receiver.next().await {
             match msg {
                 Ok(Message::Text(text)) => {
@@ -97,7 +96,7 @@ impl ConnectionHandler {
             }
         }
 
-        // CLEANUP: Notify connection actor to disconnect
+        // Notify connection actor to disconnect
         let _ = actor_registry.disconnect_connection_actor(&connection_id);
 
         // Remove WebSocket connection

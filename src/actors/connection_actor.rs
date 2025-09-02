@@ -75,7 +75,6 @@ impl ConnectionActor {
                         self.send_error_to_client(error).await;
                     }
                 }
-                // NEW: Handle state transitions
                 ConnectionMessage::TransitionToGame { game_id, player_id } => {
                     println!(
                         "🔌 Connection {} transitioning to game {} as player {}",
@@ -302,8 +301,6 @@ impl ConnectionActor {
             // to the game actor, but for now the game will handle it via normal cleanup
         }
     }
-
-    // PUBLIC METHODS for state management from other actors
 
     pub fn transition_to_game(&mut self, game_id: String, player_id: String) {
         println!(

@@ -78,7 +78,6 @@ impl ActorRegistry {
             self.connection_to_game_mapping
                 .insert(connection_id.clone(), game_id.clone());
 
-            // NEW: Notify connection actors about game state transition
             if let Some(_) = self.connection_actors.get(connection_id) {
                 // We can't directly call methods on the connection actor, but we could
                 // send a state transition message if we had that message type
@@ -115,7 +114,6 @@ impl ActorRegistry {
         self.send_to_connection_actor(connection_id, message)
     }
 
-    // NEW: Notify connection actor of return to lobby
     pub fn notify_connection_lobby_return(&self, connection_id: &str) -> AppResult<()> {
         use crate::actors::connection_actor::ConnectionMessage;
 
@@ -123,9 +121,7 @@ impl ActorRegistry {
         self.send_to_connection_actor(connection_id, message)
     }
 
-    // ENHANCED: Better game message routing with debug info
     pub fn send_game_message(&self, connection_id: &str, message: GameMessage) -> AppResult<()> {
-        // DEBUG: Check if connection has game mapping
         let game_id = self
             .connection_to_game_mapping
             .get(connection_id)
@@ -184,7 +180,6 @@ impl ActorRegistry {
         self.connection_to_game_mapping.contains_key(connection_id)
     }
 
-    // NEW: Broadcast to multiple connection actors
     pub fn broadcast_to_connections(
         &self,
         connection_ids: &[String],
