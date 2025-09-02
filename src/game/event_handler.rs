@@ -64,8 +64,9 @@ impl EventHandler {
     ) {
         let _ = cmd_sender.send(ConnectionCommand::SendToPlayers {
             connections_id: self.room_connections_id.clone(),
-            message: serialize_response(ServerResponse::TurnChange {
-                next_player_id: state.turn_order.active_player_id.clone(),
+            message: serialize_response(ServerResponse::TurnPhaseChange {
+                player_id: state.turn_order.active_player_id.clone(),
+                phase: TurnPhases::EndStep,
             }),
         });
     }
@@ -77,8 +78,9 @@ impl EventHandler {
     ) {
         let _ = cmd_sender.send(ConnectionCommand::SendToPlayers {
             connections_id: self.room_connections_id.clone(),
-            message: serialize_response(ServerResponse::PriorityChange {
+            message: serialize_response(ServerResponse::TurnPhaseChange {
                 player_id: state.current_priority_player.clone(),
+                phase: TurnPhases::EndStep,
             }),
         });
     }

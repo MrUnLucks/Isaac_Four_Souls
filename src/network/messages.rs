@@ -96,22 +96,9 @@ pub enum ServerResponse {
         turn_order: Vec<String>,
     },
     //Broadcast for all players
-    TurnChange {
-        next_player_id: String,
-    },
-    PriorityChange {
+    TurnPhaseChange {
         player_id: String,
-    },
-    PhaseStart {
         phase: TurnPhases,
-        priority_player: String,
-    },
-    GameEnded {
-        winner_id: String,
-    },
-    BoardStateUpdate {
-        hands: HashMap<String, Vec<LootCard>>,
-        loot_deck: Vec<LootCard>,
     },
     PublicBoardState {
         hand_sizes: HashMap<String, usize>,
@@ -121,8 +108,10 @@ pub enum ServerResponse {
         active_player: String,
     },
     PrivateBoardState {
-        player_id: String,
         hand: Vec<LootCard>, // Only this player's hand
+    },
+    GameEnded {
+        winner_id: String,
     },
     Error {
         error_type: String, // "RoomFull", "PlayerNotFound" variant_name of errror

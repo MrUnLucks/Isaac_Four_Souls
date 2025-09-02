@@ -67,10 +67,7 @@ impl StateBroadcaster {
 
             let _ = cmd_sender.send(ConnectionCommand::SendToPlayer {
                 connection_id: conn_id.clone(),
-                message: serialize_response(ServerResponse::PrivateBoardState {
-                    player_id: player_id.clone(),
-                    hand,
-                }),
+                message: serialize_response(ServerResponse::PrivateBoardState { hand }),
             });
         }
     }
@@ -82,9 +79,9 @@ impl StateBroadcaster {
     ) {
         let _ = cmd_sender.send(ConnectionCommand::SendToPlayers {
             connections_id: self.room_connections_id.clone(),
-            message: serialize_response(ServerResponse::PhaseStart {
+            message: serialize_response(ServerResponse::TurnPhaseChange {
+                player_id: state.current_priority_player.clone(),
                 phase: state.current_phase.clone(),
-                priority_player: state.current_priority_player.clone(),
             }),
         });
     }
