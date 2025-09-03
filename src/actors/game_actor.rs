@@ -24,6 +24,7 @@ impl GameActor {
         game_id: String,
         players_id_to_connection_id: HashMap<String, String>,
         turn_order: TurnOrder,
+        cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
     ) -> Self {
         // Reverse the mapping for quick lookup
         let connection_to_player_mapping: HashMap<String, String> = players_id_to_connection_id
@@ -33,7 +34,7 @@ impl GameActor {
 
         let player_to_connection_mapping = players_id_to_connection_id.clone();
 
-        let coordinator = GameCoordinator::new(players_id_to_connection_id, turn_order);
+        let coordinator = GameCoordinator::new(players_id_to_connection_id, turn_order, cmd_sender);
 
         Self {
             game_id,

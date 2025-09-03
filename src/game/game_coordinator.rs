@@ -23,12 +23,13 @@ impl GameCoordinator {
     pub fn new(
         players_id_to_connection_id: HashMap<String, String>,
         turn_order: TurnOrder,
+        cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
     ) -> Self {
         let player_ids = players_id_to_connection_id.keys().cloned().collect();
         let game_state = GameState::new(player_ids, turn_order);
 
         let room_connections_id = players_id_to_connection_id.values().cloned().collect();
-        let state_broadcaster = StateBroadcaster::new(players_id_to_connection_id);
+        let state_broadcaster = StateBroadcaster::new(players_id_to_connection_id, cmd_sender);
 
         Self {
             game_state,
@@ -40,7 +41,7 @@ impl GameCoordinator {
     pub async fn initialize_game(&mut self, cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>) {
         // Send initial state to all players
         self.state_broadcaster
-            .broadcast_full_state(&self.game_state, cmd_sender)
+            .broadcast_full_state(&self.game_state)
             .await;
 
         // Start first phase
@@ -62,7 +63,7 @@ impl GameCoordinator {
 
                 // Broadcast updated state
                 self.state_broadcaster
-                    .broadcast_full_state(&self.game_state, cmd_sender)
+                    .broadcast_full_state(&self.game_state)
                     .await;
 
                 // Check win condition

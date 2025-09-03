@@ -89,6 +89,7 @@ impl ActorRegistry {
             game_id.clone(),
             players_id_to_connection_id,
             turn_order.clone(),
+            cmd_sender.clone(),
         );
 
         // Store the sender for routing messages

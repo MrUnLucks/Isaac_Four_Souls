@@ -7,25 +7,26 @@ use tokio::sync::mpsc;
 pub struct StateBroadcaster {
     players_id_to_connection_id: HashMap<String, String>,
     room_connections_id: Vec<String>,
+    cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
 }
 
 impl StateBroadcaster {
-    pub fn new(players_id_to_connection_id: HashMap<String, String>) -> Self {
+    pub fn new(
+        players_id_to_connection_id: HashMap<String, String>,
+        cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
+    ) -> Self {
         let room_connections_id = players_id_to_connection_id.values().cloned().collect();
 
         Self {
             players_id_to_connection_id,
             room_connections_id,
+            cmd_sender,
         }
     }
 
-    pub async fn broadcast_full_state(
-        &self,
-        state: &GameState,
-        cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-    ) {
-        self.broadcast_public_state(state, cmd_sender).await;
-        self.broadcast_private_states(state, cmd_sender).await;
+    pub async fn broadcast_full_state(&self, state: &GameState) {
+        self.broadcast_public_state(state, &self.cmd_sender).await;
+        self.broadcast_private_states(state, &self.cmd_sender).await;
     }
 
     async fn broadcast_public_state(
