@@ -52,7 +52,7 @@ impl GameActor {
         println!("🎮 Game actor started for game {}", self.game_id);
 
         // Initialize the game
-        self.coordinator.initialize_game(&cmd_sender).await;
+        self.coordinator.initialize_game().await;
 
         // Main message loop
         while self.coordinator.is_running() {

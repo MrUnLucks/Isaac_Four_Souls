@@ -25,15 +25,11 @@ impl StateBroadcaster {
     }
 
     pub async fn broadcast_full_state(&self, state: &GameState) {
-        self.broadcast_public_state(state, &self.cmd_sender).await;
-        self.broadcast_private_states(state, &self.cmd_sender).await;
+        self.broadcast_public_state(state).await;
+        self.broadcast_private_states(state).await;
     }
 
-    async fn broadcast_public_state(
-        &self,
-        state: &GameState,
-        cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-    ) {
+    async fn broadcast_public_state(&self, state: &GameState) {
         let hand_sizes: HashMap<String, usize> = state
             .board
             .players
@@ -41,7 +37,7 @@ impl StateBroadcaster {
             .map(|(player_id, player)| (player_id.clone(), player.hand.len()))
             .collect();
 
-        let _ = cmd_sender.send(ConnectionCommand::SendToPlayers {
+        let _ = self.cmd_sender.send(ConnectionCommand::SendToPlayers {
             connections_id: self.room_connections_id.clone(),
             message: serialize_response(ServerResponse::PublicBoardState {
                 hand_sizes,
@@ -53,16 +49,12 @@ impl StateBroadcaster {
         });
     }
 
-    async fn broadcast_private_states(
-        &self,
-        state: &GameState,
-        cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-    ) {
+    async fn broadcast_private_states(&self, state: &GameState) {
         for (player_id, conn_id) in &self.players_id_to_connection_id {
             let player = state.board.players.get(player_id).cloned();
             match player {
                 None => {
-                    let _ = cmd_sender.send(ConnectionCommand::SendToPlayer {
+                    let _ = self.cmd_sender.send(ConnectionCommand::SendToPlayer {
                         connection_id: conn_id.clone(),
                         message: serialize_response(ServerResponse::from_app_error(
                             &crate::AppError::PlayerNotFound,
@@ -70,7 +62,7 @@ impl StateBroadcaster {
                     });
                 }
                 Some(player) => {
-                    let _ = cmd_sender.send(ConnectionCommand::SendToPlayer {
+                    let _ = self.cmd_sender.send(ConnectionCommand::SendToPlayer {
                         connection_id: conn_id.clone(),
                         message: serialize_response(ServerResponse::PrivateBoardState {
                             hand: player.hand,
@@ -81,12 +73,8 @@ impl StateBroadcaster {
         }
     }
 
-    pub async fn broadcast_phase_start(
-        &self,
-        state: &GameState,
-        cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-    ) {
-        let _ = cmd_sender.send(ConnectionCommand::SendToPlayers {
+    pub async fn broadcast_phase_start(&self, state: &GameState) {
+        let _ = self.cmd_sender.send(ConnectionCommand::SendToPlayers {
             connections_id: self.room_connections_id.clone(),
             message: serialize_response(ServerResponse::TurnPhaseChange {
                 player_id: state.current_priority_player.clone(),
@@ -95,12 +83,8 @@ impl StateBroadcaster {
         });
     }
 
-    pub async fn broadcast_game_ended(
-        &self,
-        winner_id: String,
-        cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-    ) {
-        let _ = cmd_sender.send(ConnectionCommand::SendToPlayers {
+    pub async fn broadcast_game_ended(&self, winner_id: String) {
+        let _ = self.cmd_sender.send(ConnectionCommand::SendToPlayers {
             connections_id: self.room_connections_id.clone(),
             message: serialize_response(ServerResponse::GameEnded { winner_id }),
         });

@@ -38,14 +38,14 @@ impl GameCoordinator {
         }
     }
 
-    pub async fn initialize_game(&mut self, cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>) {
+    pub async fn initialize_game(&mut self) {
         // Send initial state to all players
         self.state_broadcaster
             .broadcast_full_state(&self.game_state)
             .await;
 
         // Start first phase
-        self.transition_to_phase(self.game_state.current_phase.clone(), cmd_sender)
+        self.transition_to_phase(self.game_state.current_phase.clone())
             .await;
     }
 
@@ -69,7 +69,7 @@ impl GameCoordinator {
                 // Check win condition
                 if self.check_win_condition() {
                     if let Some(winner) = self.get_winner() {
-                        self.end_game(winner, cmd_sender).await;
+                        self.end_game(winner).await;
                     }
                 }
 
@@ -89,7 +89,7 @@ impl GameCoordinator {
             GameEvent::TurnPass { player_id } => {
                 if current_state.can_player_pass_turn(&player_id) {
                     let new_state = current_state.with_phase_transition(TurnPhases::TurnEnd);
-                    cmd_sender.send(ConnectionCommand::SendToPlayers {
+                    let _ = cmd_sender.send(ConnectionCommand::SendToPlayers {
                         connections_id: self.room_connections_id.clone(),
                         message: serialize_response(ServerResponse::TurnPhaseChange {
                             player_id: new_state.turn_order.active_player_id.clone(),
@@ -104,7 +104,7 @@ impl GameCoordinator {
             GameEvent::PriorityPass { player_id } => {
                 match current_state.with_priority_pass(player_id) {
                     Ok(new_state) => {
-                        cmd_sender.send(ConnectionCommand::SendToPlayers {
+                        let _ = cmd_sender.send(ConnectionCommand::SendToPlayers {
                             connections_id: self.room_connections_id.clone(),
                             message: serialize_response(ServerResponse::TurnPhaseChange {
                                 player_id: new_state.current_priority_player.clone(),
@@ -122,11 +122,7 @@ impl GameCoordinator {
         }
     }
 
-    async fn transition_to_phase(
-        &mut self,
-        new_phase: TurnPhases,
-        cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-    ) {
+    async fn transition_to_phase(&mut self, new_phase: TurnPhases) {
         self.game_state = self.game_state.with_phase_transition(new_phase);
 
         // Handle phase-specific logic
@@ -141,7 +137,7 @@ impl GameCoordinator {
         // Start priority if not TurnEnd
         if !matches!(self.game_state.current_phase, TurnPhases::TurnEnd) {
             self.state_broadcaster
-                .broadcast_phase_start(&self.game_state, cmd_sender)
+                .broadcast_phase_start(&self.game_state)
                 .await;
         }
     }
@@ -154,15 +150,9 @@ impl GameCoordinator {
         self.game_state.turn_order.order.first().cloned()
     }
 
-    async fn end_game(
-        &mut self,
-        winner_id: String,
-        cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-    ) {
+    async fn end_game(&mut self, winner_id: String) {
         self.game_state.game_running = false;
-        self.state_broadcaster
-            .broadcast_game_ended(winner_id, cmd_sender)
-            .await;
+        self.state_broadcaster.broadcast_game_ended(winner_id).await;
     }
 
     pub fn is_running(&self) -> bool {
