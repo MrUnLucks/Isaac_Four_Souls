@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 
-use crate::game::game_coordinator::GameCoordinator;
+use crate::game::game_coordinator::{GameCoordinator, GameEvent};
 use crate::{AppError, ConnectionCommand, TurnOrder};
 
 #[derive(Debug, Clone)]
@@ -96,11 +96,11 @@ impl GameActor {
         let game_event = match message {
             GameMessage::TurnPass { player_id } => {
                 println!("🎮 Direct TurnPass for player: {}", player_id);
-                crate::game::event_handler::GameEvent::TurnPass { player_id }
+                GameEvent::TurnPass { player_id }
             }
             GameMessage::PriorityPass { player_id } => {
                 println!("🎮 Direct PriorityPass for player: {}", player_id);
-                crate::game::event_handler::GameEvent::PriorityPass { player_id }
+                GameEvent::PriorityPass { player_id }
             }
             GameMessage::TurnPassFromConnection { connection_id } => {
                 let player_id = self
@@ -118,7 +118,7 @@ impl GameActor {
                     "🎮 TurnPass from connection {} -> player {}",
                     connection_id, player_id
                 );
-                crate::game::event_handler::GameEvent::TurnPass { player_id }
+                GameEvent::TurnPass { player_id }
             }
             GameMessage::PriorityPassFromConnection { connection_id } => {
                 let player_id = self
@@ -136,7 +136,7 @@ impl GameActor {
                     "🎮 PriorityPass from connection {} -> player {}",
                     connection_id, player_id
                 );
-                crate::game::event_handler::GameEvent::PriorityPass { player_id }
+                GameEvent::PriorityPass { player_id }
             }
         };
 
