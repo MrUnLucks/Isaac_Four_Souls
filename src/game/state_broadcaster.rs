@@ -35,9 +35,9 @@ impl StateBroadcaster {
     ) {
         let hand_sizes: HashMap<String, usize> = state
             .board
-            .player_hands
+            .players
             .iter()
-            .map(|(player_id, hand)| (player_id.clone(), hand.len()))
+            .map(|(player_id, player)| (player_id.clone(), player.hand.len()))
             .collect();
 
         let _ = cmd_sender.send(ConnectionCommand::SendToPlayers {
@@ -58,17 +58,25 @@ impl StateBroadcaster {
         cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
     ) {
         for (player_id, conn_id) in &self.players_id_to_connection_id {
-            let hand = state
-                .board
-                .player_hands
-                .get(player_id)
-                .cloned()
-                .unwrap_or_default();
-
-            let _ = cmd_sender.send(ConnectionCommand::SendToPlayer {
-                connection_id: conn_id.clone(),
-                message: serialize_response(ServerResponse::PrivateBoardState { hand }),
-            });
+            let player = state.board.players.get(player_id).cloned();
+            match player {
+                None => {
+                    let _ = cmd_sender.send(ConnectionCommand::SendToPlayer {
+                        connection_id: conn_id.clone(),
+                        message: serialize_response(ServerResponse::from_app_error(
+                            &crate::AppError::PlayerNotFound,
+                        )),
+                    });
+                }
+                Some(player) => {
+                    let _ = cmd_sender.send(ConnectionCommand::SendToPlayer {
+                        connection_id: conn_id.clone(),
+                        message: serialize_response(ServerResponse::PrivateBoardState {
+                            hand: player.hand,
+                        }),
+                    });
+                }
+            }
         }
     }
 

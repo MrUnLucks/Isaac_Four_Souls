@@ -1,16 +1,45 @@
 use rand::rng;
 use rand::seq::SliceRandom;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::game::card_loader::create_loot_deck;
 use crate::game::cards_types::LootCard;
 use crate::{AppError, AppResult};
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Player {
+    pub hand: Vec<LootCard>,
+    // pub items:
+    pub max_health: u32,
+    pub current_health: u32,
+    pub loot_play_turn: bool,
+    pub loot_play_char: bool,
+}
+
+impl Player {
+    pub fn new(
+        hand: Vec<LootCard>,
+        max_health: u32,
+        current_health: u32,
+        loot_play_turn: bool,
+        loot_play_char: bool,
+    ) -> Self {
+        Self {
+            current_health,
+            hand,
+            loot_play_char,
+            loot_play_turn,
+            max_health,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Board {
     pub loot_deck: Vec<LootCard>,
     pub loot_discard: Vec<LootCard>,
-    pub player_hands: HashMap<String, Vec<LootCard>>, // player_id -> hand
+    pub players: HashMap<String, Player>,
 }
 
 impl Board {
@@ -19,8 +48,7 @@ impl Board {
         let mut rng = rng();
         loot_deck.shuffle(&mut rng);
 
-        // Initialize empty hands for all players
-        let mut player_hands = HashMap::new();
+        let mut players: HashMap<String, Player> = HashMap::new();
         for player_id in player_ids {
             let mut card_drawn: Vec<LootCard> = Vec::new();
             for _ in 1..=3 {
@@ -29,20 +57,22 @@ impl Board {
                     .expect("Full deck not enough for all players"); // Unreachable error on full deck
                 card_drawn.push(card);
             }
-            player_hands.insert(player_id, card_drawn);
+            // Characters with different healths defined here
+            let player: Player = Player::new(card_drawn, 2, 2, true, true);
+            players.insert(player_id, player);
         }
 
         Self {
             loot_deck,
             loot_discard: Vec::new(),
-            player_hands,
+            players,
         }
     }
 
     /// Draw one card from the loot deck for a specific player
     pub fn draw_loot_for_player(&mut self, player_id: &str) -> AppResult<LootCard> {
         // Check if player exists
-        if !self.player_hands.contains_key(player_id) {
+        if !self.players.contains_key(player_id) {
             return Err(AppError::PlayerNotFound);
         }
 
@@ -54,9 +84,10 @@ impl Board {
         // Draw card and add to player's hand
         let drawn_card = self.loot_deck.pop().ok_or(AppError::EmptyLootDeck)?;
 
-        self.player_hands
+        self.players
             .get_mut(player_id)
             .ok_or(AppError::PlayerNotFound)?
+            .hand
             .push(drawn_card.clone());
 
         println!("🃏 Player {} drew: {}", player_id, drawn_card.name);
@@ -64,10 +95,14 @@ impl Board {
     }
 
     /// Get a player's hand (read-only)
-    pub fn get_player_hand(&self, player_id: &str) -> AppResult<&Vec<LootCard>> {
-        self.player_hands
+    pub fn get_player_hand(&self, player_id: &str) -> AppResult<Vec<LootCard>> {
+        let player_hand = self
+            .players
             .get(player_id)
-            .ok_or(AppError::PlayerNotFound)
+            .ok_or(AppError::PlayerNotFound)?
+            .hand
+            .clone();
+        Ok(player_hand)
     }
 
     /// Get hand size for a player
@@ -77,10 +112,12 @@ impl Board {
 
     /// Remove a card from a player's hand (for playing cards)
     pub fn remove_card_from_hand(&mut self, player_id: &str, card_id: &str) -> AppResult<LootCard> {
-        let hand = self
-            .player_hands
-            .get_mut(player_id)
-            .ok_or(AppError::PlayerNotFound)?;
+        let mut hand = self
+            .players
+            .get(player_id)
+            .ok_or(AppError::PlayerNotFound)?
+            .hand
+            .clone();
 
         if let Some(pos) = hand.iter().position(|card| card.template_id == card_id) {
             Ok(hand.remove(pos))
