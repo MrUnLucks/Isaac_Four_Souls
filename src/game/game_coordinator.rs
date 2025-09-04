@@ -50,7 +50,6 @@ impl GameCoordinator {
             Ok(new_state) => {
                 self.game_state = new_state;
 
-                // Broadcast updated state
                 self.state_broadcaster
                     .broadcast_full_state(&self.game_state)
                     .await;

@@ -2,14 +2,13 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 
 use crate::game::game_coordinator::{GameCoordinator, GameEvent};
+use crate::network::messages::{serialize_response, ServerResponse};
 use crate::{AppError, AppResult, ConnectionCommand, TurnOrder};
 
 #[derive(Debug, Clone)]
 pub enum GameMessage {
-    TurnPass { player_id: String },
-    PriorityPass { player_id: String },
-    TurnPassFromConnection { connection_id: String },
-    PriorityPassFromConnection { connection_id: String },
+    TurnPass { connection_id: String },
+    PriorityPass { connection_id: String },
 }
 
 pub struct GameActor {
@@ -50,7 +49,6 @@ impl GameActor {
     pub async fn run(&mut self, mut receiver: mpsc::UnboundedReceiver<GameMessage>) {
         println!("🎮 Game actor started for game {}", self.game_id);
 
-        // Initialize the game
         self.coordinator.initialize_game().await;
 
         // Main message loop
@@ -60,11 +58,17 @@ impl GameActor {
                 message = receiver.recv() => {
                     match message {
                         Some(game_message) => {
-                            if let Err(error) = self.handle_message(game_message).await {
+                            if let Err(error) = self.handle_message(game_message.clone()).await {
                                 eprintln!("Game actor error in {}: {:?}", self.game_id, error);
-                                if let Some(connection_id) = self.get_connection_for_error(&error) {
-                                    self.send_error_to_connection(&connection_id, error).await;
-                                }
+                                // TODO: Need more friendly syntax
+                                let connection_id = match &game_message {
+                                    GameMessage::TurnPass { connection_id } => connection_id,
+                                    GameMessage::PriorityPass { connection_id } => connection_id,
+                                };
+                                let _ = self.cmd_sender.send(ConnectionCommand::SendToPlayer {
+                                    connection_id: connection_id.to_string(),
+                                    message: serialize_response(ServerResponse::from_app_error(&error)),
+                                });
                             }
                         }
                         None => {
@@ -90,25 +94,11 @@ impl GameActor {
         );
 
         let game_event = match message {
-            GameMessage::TurnPass { player_id } => {
-                println!("🎮 Direct TurnPass for player: {}", player_id);
-                GameEvent::TurnPass { player_id }
-            }
-            GameMessage::PriorityPass { player_id } => {
-                println!("🎮 Direct PriorityPass for player: {}", player_id);
-                GameEvent::PriorityPass { player_id }
-            }
-            GameMessage::TurnPassFromConnection { connection_id } => {
+            GameMessage::TurnPass { connection_id } => {
                 let player_id = self
                     .connection_to_player_mapping
                     .get(&connection_id)
-                    .ok_or_else(|| {
-                        println!(
-                            "🚨 Connection {} not found in game {} player mapping",
-                            connection_id, self.game_id
-                        );
-                        AppError::ConnectionNotInRoom
-                    })?
+                    .ok_or_else(|| AppError::ConnectionNotInRoom)?
                     .clone();
                 println!(
                     "🎮 TurnPass from connection {} -> player {}",
@@ -116,17 +106,11 @@ impl GameActor {
                 );
                 GameEvent::TurnPass { player_id }
             }
-            GameMessage::PriorityPassFromConnection { connection_id } => {
+            GameMessage::PriorityPass { connection_id } => {
                 let player_id = self
                     .connection_to_player_mapping
                     .get(&connection_id)
-                    .ok_or_else(|| {
-                        println!(
-                            "🚨 Connection {} not found in game {} player mapping",
-                            connection_id, self.game_id
-                        );
-                        AppError::ConnectionNotInRoom
-                    })?
+                    .ok_or_else(|| AppError::ConnectionNotInRoom)?
                     .clone();
                 println!(
                     "🎮 PriorityPass from connection {} -> player {}",
@@ -136,30 +120,8 @@ impl GameActor {
             }
         };
 
-        // Handle the event using existing coordinator
         self.coordinator.handle_event(game_event).await?;
-
         Ok(())
-    }
-
-    fn get_connection_for_error(&self, error: &AppError) -> Option<String> {
-        match error {
-            AppError::NotPlayerTurn => {
-                // We'd need more context to determine which player caused this error
-                // For now, return None - in a full implementation, we'd track the last action
-                None
-            }
-            _ => None,
-        }
-    }
-
-    async fn send_error_to_connection(&self, connection_id: &str, error: AppError) {
-        use crate::network::messages::{serialize_response, ServerResponse};
-
-        let _ = self.cmd_sender.send(ConnectionCommand::SendToPlayer {
-            connection_id: connection_id.to_string(),
-            message: serialize_response(ServerResponse::from_app_error(&error)),
-        });
     }
 
     pub fn get_player_id_from_connection(&self, connection_id: &str) -> Option<String> {

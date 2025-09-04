@@ -267,10 +267,10 @@ impl ConnectionActor {
         message: ClientMessage,
     ) -> AppResult<GameMessage> {
         match message {
-            ClientMessage::TurnPass => Ok(GameMessage::TurnPassFromConnection {
+            ClientMessage::TurnPass => Ok(GameMessage::TurnPass {
                 connection_id: self.connection_id.clone(),
             }),
-            ClientMessage::PriorityPass => Ok(GameMessage::PriorityPassFromConnection {
+            ClientMessage::PriorityPass => Ok(GameMessage::PriorityPass {
                 connection_id: self.connection_id.clone(),
             }),
             _ => Err(AppError::Internal {
