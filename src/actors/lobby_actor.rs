@@ -4,7 +4,7 @@ use tokio::sync::mpsc;
 
 use crate::actors::actor_registry::ActorRegistry;
 use crate::network::messages::{serialize_response, ServerResponse};
-use crate::{AppError, ConnectionCommand, Room};
+use crate::{AppError, AppResult, ConnectionCommand, Room};
 
 #[derive(Debug)]
 pub enum LobbyMessage {
@@ -79,7 +79,7 @@ impl LobbyActor {
         println!("🏛️ Lobby actor stopped");
     }
 
-    async fn handle_message(&mut self, message: LobbyMessage) -> Result<(), AppError> {
+    async fn handle_message(&mut self, message: LobbyMessage) -> AppResult<()> {
         match message {
             LobbyMessage::Ping { connection_id } => {
                 self.cmd_sender.send(ConnectionCommand::SendToPlayer {
@@ -263,7 +263,7 @@ impl LobbyActor {
         room_name: String,
         first_player_connection_id: String,
         first_player_name: String,
-    ) -> Result<(String, String), AppError> {
+    ) -> AppResult<(String, String)> {
         if room_name.trim().is_empty() {
             return Err(AppError::RoomNameEmpty);
         }
@@ -307,14 +307,14 @@ impl LobbyActor {
             .map(|info| info.player_name.clone())
     }
 
-    fn get_player_id_from_connection_id(&self, connection_id: &str) -> Result<String, AppError> {
+    fn get_player_id_from_connection_id(&self, connection_id: &str) -> AppResult<String> {
         self.connection_to_room_info
             .get(connection_id)
             .ok_or(AppError::ConnectionNotInRoom)
             .map(|info| info.room_player_id.clone())
     }
 
-    fn get_connections_id_from_room_id(&self, room_id: &str) -> Result<Vec<String>, AppError> {
+    fn get_connections_id_from_room_id(&self, room_id: &str) -> AppResult<Vec<String>> {
         self.rooms_connections_map
             .get(room_id)
             .ok_or(AppError::RoomNotFound {
@@ -328,7 +328,7 @@ impl LobbyActor {
         room_id: &str,
         connection_id: String,
         player_name: String,
-    ) -> Result<String, AppError> {
+    ) -> AppResult<String> {
         if self.connection_to_room_info.contains_key(&connection_id) {
             return Err(AppError::PlayerAlreadyInRoom { player_name });
         }
@@ -354,7 +354,7 @@ impl LobbyActor {
         Ok(new_player_id)
     }
 
-    fn leave_room(&mut self, connection_id: &str) -> Result<String, AppError> {
+    fn leave_room(&mut self, connection_id: &str) -> AppResult<String> {
         let PlayerRoomInfo {
             room_id,
             room_player_id,
@@ -385,7 +385,7 @@ impl LobbyActor {
         Ok(removed_player_name)
     }
 
-    fn destroy_room(&mut self, room_id: &str, connection_id: &str) -> Result<String, AppError> {
+    fn destroy_room(&mut self, room_id: &str, connection_id: &str) -> AppResult<String> {
         self.connection_to_room_info
             .remove(connection_id)
             .ok_or(AppError::ConnectionNotInRoom)?;
@@ -405,7 +405,7 @@ impl LobbyActor {
         Ok(room_id.to_string())
     }
 
-    fn ready_player(&mut self, player_id: &str) -> Result<HashSet<String>, AppError> {
+    fn ready_player(&mut self, player_id: &str) -> AppResult<HashSet<String>> {
         let room_id = self.get_player_room_from_player_id(player_id)?;
 
         let room = self.rooms.get_mut(&room_id).ok_or(AppError::RoomNotFound {
@@ -415,7 +415,7 @@ impl LobbyActor {
         room.add_player_ready(player_id)
     }
 
-    fn get_player_room_from_player_id(&self, player_id: &str) -> Result<String, AppError> {
+    fn get_player_room_from_player_id(&self, player_id: &str) -> AppResult<String> {
         self.connection_to_room_info
             .values()
             .find(|info| info.room_player_id == player_id)
@@ -423,7 +423,7 @@ impl LobbyActor {
             .ok_or(AppError::ConnectionNotInRoom)
     }
 
-    fn get_players_mapping(&self, room_id: &str) -> Result<HashMap<String, String>, AppError> {
+    fn get_players_mapping(&self, room_id: &str) -> AppResult<HashMap<String, String>> {
         let mut players_mapping = HashMap::new();
 
         for (connection_id, player_info) in &self.connection_to_room_info {

@@ -97,7 +97,7 @@ impl ActorRegistry {
 
         // Spawn the game actor task
         tokio::spawn(async move {
-            game_actor.run(game_receiver, cmd_sender).await;
+            game_actor.run(game_receiver).await;
         });
 
         Ok(turn_order)

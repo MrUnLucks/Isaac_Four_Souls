@@ -195,9 +195,11 @@ impl AppError {
 }
 
 pub mod validation {
+    use crate::AppResult;
+
     use super::AppError;
 
-    pub fn validate_player_name(name: &str) -> Result<(), AppError> {
+    pub fn validate_player_name(name: &str) -> AppResult<()> {
         if name.trim().is_empty() {
             return Err(AppError::InvalidPlayerName {
                 reason: "Player name cannot be empty".to_string(),
@@ -220,7 +222,7 @@ pub mod validation {
         Ok(())
     }
 
-    pub fn validate_room_name(name: &str) -> Result<(), AppError> {
+    pub fn validate_room_name(name: &str) -> AppResult<()> {
         if name.trim().is_empty() {
             return Err(AppError::RoomNameEmpty);
         }

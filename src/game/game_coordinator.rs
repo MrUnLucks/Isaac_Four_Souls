@@ -2,9 +2,8 @@ use std::collections::HashMap;
 
 use crate::game::game_state::{GameState, TurnPhases};
 use crate::game::state_broadcaster::StateBroadcaster;
-use crate::network::messages::{serialize_response, ServerResponse};
-use crate::TurnOrder;
 use crate::{AppError, ConnectionCommand};
+use crate::{AppResult, TurnOrder};
 use tokio::sync::mpsc;
 
 #[derive(Debug, Clone)]
@@ -16,7 +15,6 @@ pub enum GameEvent {
 pub struct GameCoordinator {
     game_state: GameState,
     state_broadcaster: StateBroadcaster,
-    room_connections_id: Vec<String>,
 }
 
 impl GameCoordinator {
@@ -28,12 +26,10 @@ impl GameCoordinator {
         let player_ids = players_id_to_connection_id.keys().cloned().collect();
         let game_state = GameState::new(player_ids, turn_order);
 
-        let room_connections_id = players_id_to_connection_id.values().cloned().collect();
         let state_broadcaster = StateBroadcaster::new(players_id_to_connection_id, cmd_sender);
 
         Self {
             game_state,
-            room_connections_id,
             state_broadcaster,
         }
     }
@@ -49,15 +45,8 @@ impl GameCoordinator {
             .await;
     }
 
-    pub async fn handle_event(
-        &mut self,
-        event: GameEvent,
-        cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-    ) -> Result<(), crate::AppError> {
-        match self
-            .handle_game_event(event, &self.game_state, cmd_sender)
-            .await
-        {
+    pub async fn handle_event(&mut self, event: GameEvent) -> Result<(), AppError> {
+        match self.handle_game_event(event, &self.game_state).await {
             Ok(new_state) => {
                 self.game_state = new_state;
 
@@ -83,19 +72,12 @@ impl GameCoordinator {
         &self,
         event: GameEvent,
         current_state: &GameState,
-        cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-    ) -> Result<GameState, AppError> {
+    ) -> AppResult<GameState> {
         match event {
             GameEvent::TurnPass { player_id } => {
                 if current_state.can_player_pass_turn(&player_id) {
                     let new_state = current_state.with_phase_transition(TurnPhases::TurnEnd);
-                    let _ = cmd_sender.send(ConnectionCommand::SendToPlayers {
-                        connections_id: self.room_connections_id.clone(),
-                        message: serialize_response(ServerResponse::TurnPhaseChange {
-                            player_id: new_state.turn_order.active_player_id.clone(),
-                            phase: TurnPhases::EndStep,
-                        }),
-                    });
+                    let _ = self.state_broadcaster.broadcast_phase_start(&new_state);
                     Ok(new_state)
                 } else {
                     Err(AppError::NotPlayerTurn)
@@ -104,13 +86,7 @@ impl GameCoordinator {
             GameEvent::PriorityPass { player_id } => {
                 match current_state.with_priority_pass(player_id) {
                     Ok(new_state) => {
-                        let _ = cmd_sender.send(ConnectionCommand::SendToPlayers {
-                            connections_id: self.room_connections_id.clone(),
-                            message: serialize_response(ServerResponse::TurnPhaseChange {
-                                player_id: new_state.current_priority_player.clone(),
-                                phase: TurnPhases::EndStep,
-                            }),
-                        });
+                        let _ = self.state_broadcaster.broadcast_phase_start(&new_state);
                         Ok(new_state)
                     }
                     Err(AppError::InvalidPriorityPass) => Err(AppError::InvalidPriorityPass),

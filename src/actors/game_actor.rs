@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 
 use crate::game::game_coordinator::{GameCoordinator, GameEvent};
-use crate::{AppError, ConnectionCommand, TurnOrder};
+use crate::{AppError, AppResult, ConnectionCommand, TurnOrder};
 
 #[derive(Debug, Clone)]
 pub enum GameMessage {
@@ -17,6 +17,7 @@ pub struct GameActor {
     coordinator: GameCoordinator,
     connection_to_player_mapping: HashMap<String, String>, // connection_id -> player_id
     player_to_connection_mapping: HashMap<String, String>, // player_id -> connection_id
+    cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
 }
 
 impl GameActor {
@@ -34,21 +35,19 @@ impl GameActor {
 
         let player_to_connection_mapping = players_id_to_connection_id.clone();
 
-        let coordinator = GameCoordinator::new(players_id_to_connection_id, turn_order, cmd_sender);
+        let coordinator =
+            GameCoordinator::new(players_id_to_connection_id, turn_order, cmd_sender.clone());
 
         Self {
             game_id,
             coordinator,
             connection_to_player_mapping,
             player_to_connection_mapping,
+            cmd_sender,
         }
     }
 
-    pub async fn run(
-        &mut self,
-        mut receiver: mpsc::UnboundedReceiver<GameMessage>,
-        cmd_sender: mpsc::UnboundedSender<ConnectionCommand>,
-    ) {
+    pub async fn run(&mut self, mut receiver: mpsc::UnboundedReceiver<GameMessage>) {
         println!("🎮 Game actor started for game {}", self.game_id);
 
         // Initialize the game
@@ -61,10 +60,10 @@ impl GameActor {
                 message = receiver.recv() => {
                     match message {
                         Some(game_message) => {
-                            if let Err(error) = self.handle_message(game_message, &cmd_sender).await {
+                            if let Err(error) = self.handle_message(game_message).await {
                                 eprintln!("Game actor error in {}: {:?}", self.game_id, error);
                                 if let Some(connection_id) = self.get_connection_for_error(&error) {
-                                    self.send_error_to_connection(&connection_id, error, &cmd_sender).await;
+                                    self.send_error_to_connection(&connection_id, error).await;
                                 }
                             }
                         }
@@ -83,11 +82,7 @@ impl GameActor {
         println!("🎮 Game actor ended for game {}", self.game_id);
     }
 
-    async fn handle_message(
-        &mut self,
-        message: GameMessage,
-        cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-    ) -> Result<(), AppError> {
+    async fn handle_message(&mut self, message: GameMessage) -> AppResult<()> {
         println!("🎮 Game {} handling message: {:?}", self.game_id, message);
         println!(
             "🎮 Connection->Player mapping: {:?}",
@@ -142,9 +137,7 @@ impl GameActor {
         };
 
         // Handle the event using existing coordinator
-        self.coordinator
-            .handle_event(game_event, cmd_sender)
-            .await?;
+        self.coordinator.handle_event(game_event).await?;
 
         Ok(())
     }
@@ -160,15 +153,10 @@ impl GameActor {
         }
     }
 
-    async fn send_error_to_connection(
-        &self,
-        connection_id: &str,
-        error: AppError,
-        cmd_sender: &mpsc::UnboundedSender<ConnectionCommand>,
-    ) {
+    async fn send_error_to_connection(&self, connection_id: &str, error: AppError) {
         use crate::network::messages::{serialize_response, ServerResponse};
 
-        let _ = cmd_sender.send(ConnectionCommand::SendToPlayer {
+        let _ = self.cmd_sender.send(ConnectionCommand::SendToPlayer {
             connection_id: connection_id.to_string(),
             message: serialize_response(ServerResponse::from_app_error(&error)),
         });

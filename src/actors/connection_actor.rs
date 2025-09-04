@@ -11,7 +11,7 @@ use crate::network::messages::{ClientMessage, ClientMessageCategory, ServerRespo
 use crate::network::reliable_messaging::{
     create_reliable_message, MessageAck, MessageReceiver, PendingMessage, ReliableMessage,
 };
-use crate::{AppError, ConnectionCommand};
+use crate::{AppError, AppResult, ConnectionCommand};
 
 #[derive(Debug)]
 pub enum ConnectionMessage {
@@ -115,7 +115,7 @@ impl ConnectionActor {
         println!("🔌 Connection actor stopped for {}", self.connection_id);
     }
 
-    async fn handle_client_message(&mut self, message: ClientMessage) -> Result<(), AppError> {
+    async fn handle_client_message(&mut self, message: ClientMessage) -> AppResult<()> {
         println!(
             "🔌 Connection {} (state: {:?}) handling message: {:?}",
             self.connection_id, self.state, message
@@ -153,10 +153,7 @@ impl ConnectionActor {
         }
     }
 
-    pub async fn handle_reliable_message(
-        &mut self,
-        message: ReliableMessage,
-    ) -> Result<(), AppError> {
+    pub async fn handle_reliable_message(&mut self, message: ReliableMessage) -> AppResult<()> {
         let (ack, ordered_messages) = self.message_receiver.receive_message(message);
 
         // Send ack
@@ -188,7 +185,7 @@ impl ConnectionActor {
         }
     }
 
-    async fn handle_lobby_message(&mut self, message: ClientMessage) -> Result<(), AppError> {
+    async fn handle_lobby_message(&mut self, message: ClientMessage) -> AppResult<()> {
         let lobby_message = self.convert_to_lobby_message(message)?;
 
         // Special handling for state transitions
@@ -203,7 +200,7 @@ impl ConnectionActor {
         Ok(())
     }
 
-    async fn handle_game_message(&mut self, message: ClientMessage) -> Result<(), AppError> {
+    async fn handle_game_message(&mut self, message: ClientMessage) -> AppResult<()> {
         // Validate we're in a game
         match &self.state {
             ConnectionState::InGame { game_id, player_id } => {
@@ -228,7 +225,7 @@ impl ConnectionActor {
         }
     }
 
-    fn convert_to_lobby_message(&self, message: ClientMessage) -> Result<LobbyMessage, AppError> {
+    fn convert_to_lobby_message(&self, message: ClientMessage) -> AppResult<LobbyMessage> {
         let connection_id = self.connection_id.clone();
 
         match message {
@@ -268,7 +265,7 @@ impl ConnectionActor {
     fn convert_to_game_message_with_connection(
         &self,
         message: ClientMessage,
-    ) -> Result<GameMessage, AppError> {
+    ) -> AppResult<GameMessage> {
         match message {
             ClientMessage::TurnPass => Ok(GameMessage::TurnPassFromConnection {
                 connection_id: self.connection_id.clone(),
