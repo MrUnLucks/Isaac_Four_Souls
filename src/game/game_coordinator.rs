@@ -9,7 +9,7 @@ use tokio::sync::mpsc;
 #[derive(Debug, Clone)]
 pub enum GameEvent {
     TurnPass { player_id: String },
-    PriorityPass { player_id: String },
+    // PriorityPass { player_id: String },
 }
 
 pub struct GameCoordinator {
@@ -81,19 +81,18 @@ impl GameCoordinator {
                 } else {
                     Err(AppError::NotPlayerTurn)
                 }
-            }
-            GameEvent::PriorityPass { player_id } => {
-                match current_state.with_priority_pass(player_id) {
-                    Ok(new_state) => {
-                        let _ = self.state_broadcaster.broadcast_phase_start(&new_state);
-                        Ok(new_state)
-                    }
-                    Err(AppError::InvalidPriorityPass) => Err(AppError::InvalidPriorityPass),
-                    _ => Err(AppError::Internal {
-                        message: "Unexpected game state error".to_string(),
-                    }),
-                }
-            }
+            } // GameEvent::PriorityPass { player_id } => {
+              //     match current_state.with_priority_pass(player_id) {
+              //         Ok(new_state) => {
+              //             let _ = self.state_broadcaster.broadcast_phase_start(&new_state);
+              //             Ok(new_state)
+              //         }
+              //         Err(AppError::InvalidPriorityPass) => Err(AppError::InvalidPriorityPass),
+              //         _ => Err(AppError::Internal {
+              //             message: "Unexpected game state error".to_string(),
+              //         }),
+              //     }
+              // }
         }
     }
 

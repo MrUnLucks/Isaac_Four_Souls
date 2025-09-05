@@ -103,11 +103,6 @@ impl GameState {
     }
 
     pub fn with_phase_transition(&self, new_phase: TurnPhases) -> Self {
-        println!(
-            "🔄 Phase transition: {:?} -> {:?}",
-            self.current_phase, new_phase
-        );
-
         let mut new_state = self.clone();
         new_state.current_phase = new_phase.clone();
 
@@ -117,6 +112,10 @@ impl GameState {
             new_state.current_priority_player = new_state.turn_order.active_player_id.clone();
             new_state.waiting_for_priority = true;
             new_state.players_passed_priority.clear();
+            // Temporary since Priority is commented
+            new_state
+                .board
+                .draw_loot_for_player(&new_state.current_priority_player);
         } else {
             new_state.waiting_for_priority = true;
             new_state.players_passed_priority.clear();

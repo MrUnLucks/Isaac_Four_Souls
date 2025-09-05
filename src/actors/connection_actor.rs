@@ -270,9 +270,9 @@ impl ConnectionActor {
             ClientMessage::TurnPass => Ok(GameMessage::TurnPass {
                 connection_id: self.connection_id.clone(),
             }),
-            ClientMessage::PriorityPass => Ok(GameMessage::PriorityPass {
-                connection_id: self.connection_id.clone(),
-            }),
+            // ClientMessage::PriorityPass => Ok(GameMessage::PriorityPass {
+            //     connection_id: self.connection_id.clone(),
+            // }),
             _ => Err(AppError::Internal {
                 message: "Invalid game message conversion".to_string(),
             }),

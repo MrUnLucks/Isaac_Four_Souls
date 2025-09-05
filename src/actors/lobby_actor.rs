@@ -172,6 +172,55 @@ impl LobbyActor {
                         player_id,
                     }),
                 })?;
+
+                // Temporary shortcircuit for testing purposes
+                //----------------------------------------------------------------------------------------
+                let players_mapping = self.get_players_mapping(&room_id)?;
+                if players_mapping.len() == 2 {
+                    let turn_order = self.actor_registry.start_game_actor(
+                        room_id.clone(),
+                        players_mapping.clone(),
+                        self.cmd_sender.clone(),
+                    )?;
+
+                    for (player_id, connection_id) in &players_mapping {
+                        println!(
+                            "🏛️ Notifying connection {} that they are player {} in game {}",
+                            connection_id, player_id, room_id
+                        );
+
+                        if let Err(e) = self.actor_registry.notify_connection_game_start(
+                            connection_id,
+                            room_id.clone(),
+                            player_id.clone(),
+                        ) {
+                            eprintln!(
+                                "Failed to notify connection {} of game start: {:?}",
+                                connection_id, e
+                            );
+                        }
+                    }
+
+                    let connections_id = self.get_connections_id_from_room_id(&room_id)?;
+
+                    self.cmd_sender.send(ConnectionCommand::SendToPlayers {
+                        connections_id: connections_id.clone(),
+                        message: serialize_response(ServerResponse::RoomGameStart {
+                            turn_order: turn_order.order,
+                        }),
+                    })?;
+
+                    self.cmd_sender.send(ConnectionCommand::SendToAll {
+                        message: serialize_response(ServerResponse::LobbyStartedGame {
+                            room_id: room_id.clone(),
+                        }),
+                    })?;
+
+                    if let Some(room) = self.rooms.get_mut(&room_id) {
+                        room.set_state_in_game();
+                    }
+                }
+                //------------------------------------------------------------------------------------
             }
 
             LobbyMessage::LeaveRoom { connection_id } => {
@@ -195,10 +244,9 @@ impl LobbyActor {
 
                 let player_id = self.get_player_id_from_connection_id(&connection_id)?;
                 let ready_result = self.ready_player(&player_id)?;
+                let players_mapping = self.get_players_mapping(&room_id)?;
 
-                if true {
-                    let players_mapping = self.get_players_mapping(&room_id)?;
-
+                if ready_result.len() == players_mapping.len() {
                     println!(
                         "🏛️ Starting game for room {} with players: {:?}",
                         room_id, players_mapping

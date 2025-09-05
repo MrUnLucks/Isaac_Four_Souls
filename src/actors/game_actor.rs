@@ -8,7 +8,7 @@ use crate::{AppError, AppResult, ConnectionCommand, TurnOrder};
 #[derive(Debug, Clone)]
 pub enum GameMessage {
     TurnPass { connection_id: String },
-    PriorityPass { connection_id: String },
+    // PriorityPass { connection_id: String },
 }
 
 pub struct GameActor {
@@ -63,7 +63,7 @@ impl GameActor {
                                 // TODO: Need more friendly syntax
                                 let connection_id = match &game_message {
                                     GameMessage::TurnPass { connection_id } => connection_id,
-                                    GameMessage::PriorityPass { connection_id } => connection_id,
+                                    // GameMessage::PriorityPass { connection_id } => connection_id,
                                 };
                                 let _ = self.cmd_sender.send(ConnectionCommand::SendToPlayer {
                                     connection_id: connection_id.to_string(),
@@ -100,24 +100,15 @@ impl GameActor {
                     .get(&connection_id)
                     .ok_or_else(|| AppError::ConnectionNotInRoom)?
                     .clone();
-                println!(
-                    "🎮 TurnPass from connection {} -> player {}",
-                    connection_id, player_id
-                );
                 GameEvent::TurnPass { player_id }
-            }
-            GameMessage::PriorityPass { connection_id } => {
-                let player_id = self
-                    .connection_to_player_mapping
-                    .get(&connection_id)
-                    .ok_or_else(|| AppError::ConnectionNotInRoom)?
-                    .clone();
-                println!(
-                    "🎮 PriorityPass from connection {} -> player {}",
-                    connection_id, player_id
-                );
-                GameEvent::PriorityPass { player_id }
-            }
+            } // GameMessage::PriorityPass { connection_id } => {
+              //     let player_id = self
+              //         .connection_to_player_mapping
+              //         .get(&connection_id)
+              //         .ok_or_else(|| AppError::ConnectionNotInRoom)?
+              //         .clone();
+              //     GameEvent::PriorityPass { player_id }
+              // }
         };
 
         self.coordinator.handle_event(game_event).await?;
