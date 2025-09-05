@@ -27,7 +27,7 @@ impl Room {
 
     pub fn new(name: String) -> Self {
         Self {
-            id: Uuid::new_v4().to_string(),
+            id: "5edf4e4d-354e-4a84-a2b1-1a1a1f197b9f".to_string(), // TEMPORARY FOR TESTING
             name,
             players: HashMap::new(), // Add-first-player handled in room_manager!
             players_ready: HashSet::new(),

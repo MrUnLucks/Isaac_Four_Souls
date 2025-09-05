@@ -35,6 +35,12 @@ impl GameCoordinator {
     }
 
     pub async fn initialize_game(&mut self) {
+        // Temporary for shortcircuiting priority
+        let _ = self
+            .game_state
+            .board
+            .draw_loot_for_player(&self.game_state.turn_order.active_player_id);
+
         // Send initial state to all players
         self.state_broadcaster
             .broadcast_full_state(&self.game_state)
