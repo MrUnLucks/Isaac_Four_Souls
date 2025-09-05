@@ -9,28 +9,28 @@ use crate::{AppError, AppResult};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Player {
-    pub hand: Vec<LootCard>,
     // pub items:
     pub max_health: u32,
     pub current_health: u32,
     pub loot_play_turn: bool,
     pub loot_play_char: bool,
+    pub hand_size: usize,
 }
 
 impl Player {
     pub fn new(
-        hand: Vec<LootCard>,
         max_health: u32,
         current_health: u32,
         loot_play_turn: bool,
         loot_play_char: bool,
+        hand_size: usize,
     ) -> Self {
         Self {
             current_health,
-            hand,
             loot_play_char,
             loot_play_turn,
             max_health,
+            hand_size,
         }
     }
 }
@@ -40,6 +40,7 @@ pub struct Board {
     pub loot_deck: Vec<LootCard>,
     pub loot_discard: Vec<LootCard>,
     pub players: HashMap<String, Player>,
+    pub players_hands: HashMap<String, Vec<LootCard>>,
 }
 
 impl Board {
@@ -49,6 +50,7 @@ impl Board {
         loot_deck.shuffle(&mut rng);
 
         let mut players: HashMap<String, Player> = HashMap::new();
+        let mut players_hands: HashMap<String, Vec<LootCard>> = HashMap::new();
         for player_id in player_ids {
             let mut card_drawn: Vec<LootCard> = Vec::new();
             for _ in 1..=3 {
@@ -57,8 +59,10 @@ impl Board {
                     .expect("Full deck not enough for all players"); // Unreachable error on full deck
                 card_drawn.push(card);
             }
+            let card_drawn_size = card_drawn.len();
+            players_hands.insert(player_id.clone(), card_drawn);
             // Characters with different healths defined here
-            let player: Player = Player::new(card_drawn, 2, 2, true, true);
+            let player: Player = Player::new(2, 2, true, true, card_drawn_size);
             players.insert(player_id, player);
         }
 
@@ -66,6 +70,7 @@ impl Board {
             loot_deck,
             loot_discard: Vec::new(),
             players,
+            players_hands,
         }
     }
 
@@ -84,10 +89,9 @@ impl Board {
         // Draw card and add to player's hand
         let drawn_card = self.loot_deck.pop().ok_or(AppError::EmptyLootDeck)?;
 
-        self.players
+        self.players_hands
             .get_mut(player_id)
             .ok_or(AppError::PlayerNotFound)?
-            .hand
             .push(drawn_card.clone());
 
         println!("🃏 Player {} drew: {}", player_id, drawn_card.name);
@@ -97,10 +101,9 @@ impl Board {
     /// Get a player's hand (read-only)
     pub fn get_player_hand(&self, player_id: &str) -> AppResult<Vec<LootCard>> {
         let player_hand = self
-            .players
+            .players_hands
             .get(player_id)
             .ok_or(AppError::PlayerNotFound)?
-            .hand
             .clone();
         Ok(player_hand)
     }
@@ -113,10 +116,9 @@ impl Board {
     /// Remove a card from a player's hand (for playing cards)
     pub fn remove_card_from_hand(&mut self, player_id: &str, card_id: &str) -> AppResult<LootCard> {
         let mut hand = self
-            .players
+            .players_hands
             .get(player_id)
             .ok_or(AppError::PlayerNotFound)?
-            .hand
             .clone();
 
         if let Some(pos) = hand.iter().position(|card| card.template_id == card_id) {

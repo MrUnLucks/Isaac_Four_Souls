@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    game::{cards_types::LootCard, game_state::TurnPhases},
+    game::{board::Player, cards_types::LootCard, game_state::TurnPhases},
     AppError,
 };
 
@@ -101,11 +101,11 @@ pub enum ServerResponse {
         phase: TurnPhases,
     },
     PublicBoardState {
-        hand_sizes: HashMap<String, usize>,
         loot_deck_size: usize,
         loot_discard: Vec<LootCard>,
         current_phase: TurnPhases,
         active_player: String,
+        players: HashMap<String, Player>,
     },
     PrivateBoardState {
         hand: Vec<LootCard>, // Only this player's hand

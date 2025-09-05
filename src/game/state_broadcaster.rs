@@ -30,29 +30,22 @@ impl StateBroadcaster {
     }
 
     async fn broadcast_public_state(&self, state: &GameState) {
-        let hand_sizes: HashMap<String, usize> = state
-            .board
-            .players
-            .iter()
-            .map(|(player_id, player)| (player_id.clone(), player.hand.len()))
-            .collect();
-
         let _ = self.cmd_sender.send(ConnectionCommand::SendToPlayers {
             connections_id: self.room_connections_id.clone(),
             message: serialize_response(ServerResponse::PublicBoardState {
-                hand_sizes,
                 loot_deck_size: state.board.loot_deck.len(),
                 loot_discard: state.board.loot_discard.clone(),
                 current_phase: state.current_phase.clone(),
                 active_player: state.turn_order.active_player_id.clone(),
+                players: state.board.players.clone(),
             }),
         });
     }
 
     async fn broadcast_private_states(&self, state: &GameState) {
         for (player_id, conn_id) in &self.players_id_to_connection_id {
-            let player = state.board.players.get(player_id).cloned();
-            match player {
+            let player_hand = state.board.players_hands.get(player_id).cloned();
+            match player_hand {
                 None => {
                     let _ = self.cmd_sender.send(ConnectionCommand::SendToPlayer {
                         connection_id: conn_id.clone(),
@@ -61,11 +54,11 @@ impl StateBroadcaster {
                         )),
                     });
                 }
-                Some(player) => {
+                Some(player_hand) => {
                     let _ = self.cmd_sender.send(ConnectionCommand::SendToPlayer {
                         connection_id: conn_id.clone(),
                         message: serialize_response(ServerResponse::PrivateBoardState {
-                            hand: player.hand,
+                            hand: player_hand,
                         }),
                     });
                 }
