@@ -138,8 +138,6 @@ impl LobbyActor {
             } => {
                 let destroyed_room_id = self.destroy_room(&room_id, &connection_id)?;
 
-                self.actor_registry.cleanup_game_actor(&destroyed_room_id);
-
                 self.cmd_sender.send(ConnectionCommand::SendToAll {
                     message: serialize_response(ServerResponse::RoomDestroyed {
                         room_id: destroyed_room_id,

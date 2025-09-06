@@ -45,6 +45,9 @@ pub enum AppError {
     #[error("Turn order not initialized")]
     TurnOrderNotInitialized,
 
+    #[error("Game not found")]
+    GameNotFound { game_id: String },
+
     // Validation errors
     #[error("Invalid player name: {reason}")]
     InvalidPlayerName { reason: String },
@@ -122,7 +125,8 @@ impl AppError {
             | AppError::SerializationError { .. }
             | AppError::WebSocketError { .. }
             | AppError::Internal { .. }
-            | AppError::GameEndedUnexpectedly { .. } => ErrorCategory::ServerError,
+            | AppError::GameEndedUnexpectedly { .. }
+            | AppError::GameNotFound { .. } => ErrorCategory::ServerError,
 
             AppError::PlayersNotReady { .. }
             | AppError::NotPlayerTurn
@@ -176,6 +180,7 @@ impl AppError {
             AppError::InvalidPriorityPass { .. } => "InvalidPriorityPass",
             AppError::InvalidTurnPass { .. } => "InvalidTurnPass",
             AppError::GameEnded { .. } => "GameEnded",
+            AppError::GameNotFound { .. } => "GameNotFound",
         }
     }
 

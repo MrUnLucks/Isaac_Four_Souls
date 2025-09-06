@@ -24,12 +24,10 @@ impl ConnectionManager {
     ) {
         let connection = WebSocketConnection { sender };
         self.connections.insert(id.clone(), connection);
-        println!("📝 Added connection: {}", id);
     }
 
     pub fn remove_connection(&mut self, id: &str) {
         self.connections.remove(id);
-        println!("🗑️ Removed connection: {}", id);
     }
 
     pub async fn send_to_all(&mut self, message: &str) {

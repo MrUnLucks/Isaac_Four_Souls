@@ -44,7 +44,6 @@ impl WebsocketServer {
         });
 
         while let Ok((stream, addr)) = listener.accept().await {
-            println!("🔗 New connection from: {}", addr);
             let connection_id = Uuid::new_v4().to_string();
 
             let actor_registry = actor_registry.clone();

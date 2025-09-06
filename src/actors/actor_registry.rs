@@ -148,9 +148,13 @@ impl ActorRegistry {
             })
     }
 
-    pub fn cleanup_game_actor(&self, game_id: &str) {
+    pub fn cleanup_game_actor(&self, game_id: &str) -> AppResult<()> {
         println!("🛑 Cleaning up game actor: {}", game_id);
-
+        if !self.game_actors.contains_key(game_id) {
+            return Err(AppError::GameNotFound {
+                game_id: game_id.to_string(),
+            });
+        }
         // Remove game actor sender
         if let Some((_, sender)) = self.game_actors.remove(game_id) {
             drop(sender); // This will close the channel and stop the actor
@@ -159,6 +163,7 @@ impl ActorRegistry {
         // Remove connection mappings for this game
         self.connection_to_game_mapping
             .retain(|_, mapped_game_id| mapped_game_id != game_id);
+        Ok(())
     }
 
     // Remove player connection mapping
@@ -181,20 +186,15 @@ impl ActorRegistry {
         self.connection_to_game_mapping.contains_key(connection_id)
     }
 
-    pub fn broadcast_to_connections(
-        &self,
-        connection_ids: &[String],
-        message_fn: impl Fn(&str) -> ConnectionMessage,
-    ) -> Vec<AppError> {
-        let mut errors = Vec::new();
-
-        for connection_id in connection_ids {
-            let message = message_fn(connection_id);
-            if let Err(error) = self.send_to_connection_actor(connection_id, message) {
-                errors.push(error);
+    pub fn cleanup_game(&self, connection_id: &str) -> AppResult<()> {
+        let game_id = self.connection_to_game_mapping.get(connection_id);
+        match game_id {
+            None => Err(AppError::ConnectionNotInRoom),
+            Some(game_id) => {
+                self.cleanup_game_actor(&game_id);
+                self.disconnect_connection_actor(&connection_id)?;
+                Ok(())
             }
         }
-
-        errors
     }
 }
